@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import clsx from "clsx";
 
 export type ServiceIconKey = "water" | "parks" | "default" | string;
 
@@ -8,6 +9,32 @@ export type ServiceIconMeta = {
   label?: string;
   colorClass?: string;
 };
+
+/** Ícones Font Awesome 6 (solid) + cor por serviço — mapa, pins e menu de camadas. */
+export type ServiceFaLayerSpec = {
+  iconClass: string;
+  color: string;
+};
+
+export const SERVICE_FA_LAYER: Record<string, ServiceFaLayerSpec> = {
+  VP: { iconClass: "fa-solid fa-tree", color: "#14532d" },
+  NH: { iconClass: "fa-solid fa-building-circle-exclamation", color: "#7f1d1d" },
+  LM: { iconClass: "fa-solid fa-monument", color: "rgba(43, 141, 176, 1)" },
+  PV: { iconClass: "fa-solid fa-dumpster", color: "rgba(33, 19, 72, 1)" },
+  MT: { iconClass: "fa-solid fa-road", color: "rgba(40, 27, 27, 1)" },
+  GO: { iconClass: "fa-solid fa-box-open", color: "rgba(115, 72, 40, 1)" },
+  BL: { iconClass: "fa-solid fa-bridge-water", color: "rgba(33, 112, 176, 1)" },
+  VJ_VL: { iconClass: "fa-solid fa-broom", color: "rgba(40, 27, 27, 1)" },
+  VM: { iconClass: "fa-solid fa-broom", color: "rgba(40, 27, 27, 1)" },
+  CF_VF_LF: { iconClass: "fa-solid fa-store", color: "rgba(176, 62, 19, 1)" },
+  CA: { iconClass: "fa-solid fa-tent", color: "rgba(163, 38, 42, 1)" },
+  LE: { iconClass: "fa-solid fa-droplet", color: "rgba(33, 112, 176, 1)" },
+  ECO: { iconClass: "fa-solid fa-recycle", color: "rgba(22, 101, 52, 1)" },
+};
+
+export function getServiceFaLayerSpec(serviceKey: string): ServiceFaLayerSpec | undefined {
+  return SERVICE_FA_LAYER[serviceKey];
+}
 
 const WaterIcon = (
   <svg
@@ -119,4 +146,28 @@ export function getServiceIconMeta(key?: string | null): ServiceIconMeta {
     return SERVICE_ICON_REGISTRY.default;
   }
   return SERVICE_ICON_REGISTRY[key] ?? SERVICE_ICON_REGISTRY.default;
+}
+
+/** Ícone FA para menu/pin quando `serviceKey` está mapeado; senão usa legado (`service_icon`). */
+export function ServiceGlyphForMap({
+  serviceKey,
+  legacyIconKey,
+  iconClassName,
+}: {
+  serviceKey?: string | null;
+  legacyIconKey?: string | null;
+  iconClassName?: string;
+}) {
+  const fa = serviceKey ? getServiceFaLayerSpec(serviceKey) : undefined;
+  if (fa) {
+    return (
+      <i
+        className={clsx(fa.iconClass, iconClassName ?? "text-[15px] leading-none")}
+        style={{ color: fa.color }}
+        aria-hidden
+      />
+    );
+  }
+  const meta = getServiceIconMeta(legacyIconKey);
+  return meta.element;
 }

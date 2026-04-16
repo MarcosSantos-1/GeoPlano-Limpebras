@@ -23,7 +23,11 @@ import {
 import "leaflet/dist/leaflet.css";
 import clsx from "clsx";
 import { renderToString } from "react-dom/server";
-import { getServiceIconMeta } from "@/lib/serviceIcons";
+import {
+  getServiceFaLayerSpec,
+  getServiceIconMeta,
+  ServiceGlyphForMap,
+} from "@/lib/serviceIcons";
 import { buildPopupHtml } from "@/lib/popupBuilder";
 import type { GeoJsonObject } from "geojson";
 import type { FeatureCollection, FeatureRecord } from "@/lib/types";
@@ -589,14 +593,19 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
   const orderedServiceKeys = useMemo(() => {
     if (!data) return [];
     const ESCALONADO_ORDER = ["MT", "GO", "BL", "VJ_VL"];
+    /** Últimas camadas: NH → LM → PV → ECO */
+    const TAIL_ORDER = ["NH", "LM", "PV", "ECO"];
+    const sortMiddleThenTail = (keys: string[]) => {
+      const tail = TAIL_ORDER.filter((k) => keys.includes(k));
+      const middle = keys.filter((k) => !TAIL_ORDER.includes(k)).sort((a, b) => a.localeCompare(b));
+      return [...middle, ...tail];
+    };
     if (data.splitByService && data.serviceKeys?.length) {
       const keys = [...data.serviceKeys];
       const escalonados = keys
         .filter((k) => ESCALONADO_ORDER.includes(k))
         .sort((a, b) => ESCALONADO_ORDER.indexOf(a) - ESCALONADO_ORDER.indexOf(b));
-      const outros = keys
-        .filter((k) => !ESCALONADO_ORDER.includes(k))
-        .sort((a, b) => a.localeCompare(b));
+      const outros = sortMiddleThenTail(keys.filter((k) => !ESCALONADO_ORDER.includes(k)));
       return [...escalonados, ...outros];
     }
     const entries = Object.entries(data.services).filter(([, f]) => f.length > 0);
@@ -608,8 +617,8 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
       else outros.push(key);
     });
     escalonados.sort((a, b) => ESCALONADO_ORDER.indexOf(a) - ESCALONADO_ORDER.indexOf(b));
-    outros.sort((a, b) => a.localeCompare(b));
-    return [...escalonados, ...outros];
+    const outrosSorted = sortMiddleThenTail(outros);
+    return [...escalonados, ...outrosSorted];
   }, [data]);
 
   const mapCenter = useMemo(() => data?.center ?? [-23.491507, -46.610730], [data]);
@@ -617,16 +626,24 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
   const getMarkerIcon = useCallback(
     (feature: FeatureRecord): Leaflet.DivIcon | null => {
       if (!isMounted || !L) return null;
-      const key = feature.service_icon ?? feature.service_type_code ?? feature.service_type ?? "default";
-      if (!iconCache.current.has(key)) {
-        const iconMeta = getServiceIconMeta(key);
+      const legacyKey =
+        feature.service_icon ?? feature.service_type_code ?? feature.service_type ?? "default";
+      const faSpec = feature.service ? getServiceFaLayerSpec(feature.service) : undefined;
+      const cacheKey = faSpec ? `fa-svc:${feature.service}` : `leg:${legacyKey}`;
+      if (!iconCache.current.has(cacheKey)) {
+        const iconMeta = getServiceIconMeta(legacyKey);
         const html = renderToString(
-          <div className={clsx("flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 shadow-sm backdrop-blur", iconMeta.bgClass ?? "bg-white/95")}>
-            {iconMeta.element}
+          <div
+            className={clsx(
+              "flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 shadow-sm backdrop-blur",
+              faSpec ? "bg-white/95" : iconMeta.bgClass ?? "bg-white/95",
+            )}
+          >
+            <ServiceGlyphForMap serviceKey={feature.service} legacyIconKey={legacyKey} />
           </div>,
         );
         iconCache.current.set(
-          key,
+          cacheKey,
           L.divIcon({
             html,
             className: "map-marker-icon",
@@ -636,7 +653,7 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
           }),
         );
       }
-      return iconCache.current.get(key)!;
+      return iconCache.current.get(cacheKey)!;
     },
     [L, isMounted],
   );
@@ -654,12 +671,22 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
 
   const renderOverlayLabel = useCallback(
     (serviceKey: string, displayName: string, sample?: FeatureRecord) => {
-      const iconKey = sample?.service_icon ?? sample?.service_type_code ?? sample?.service_type ?? serviceKey;
-      const iconMeta = getServiceIconMeta(iconKey);
+      const faSpec = getServiceFaLayerSpec(serviceKey);
+      const legacyKey =
+        sample?.service_icon ?? sample?.service_type_code ?? sample?.service_type ?? serviceKey;
+      const iconMeta = faSpec ? null : getServiceIconMeta(legacyKey);
       return renderToString(
         <span className="layer-label-text">
-          <span className={clsx("layer-service-icon", iconMeta.bgClass ?? "bg-white")}>
-            {iconMeta.element}
+          <span className={clsx("layer-service-icon", iconMeta?.bgClass ?? "bg-white")}>
+            {faSpec ? (
+              <i
+                className={clsx(faSpec.iconClass, "text-[15px] leading-none")}
+                style={{ color: faSpec.color }}
+                aria-hidden
+              />
+            ) : (
+              iconMeta?.element
+            )}
           </span>
           <span>{displayName}</span>
         </span>,
@@ -776,13 +803,6 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
               />
             </BaseLayer>
 
-            <BaseLayer name={renderBaseLayerLabel("🏔️", "Stamen Terrain")}>
-              <TileLayer
-                attribution='Map tiles by <a href="http://stamen.com">Stamen Design</a>'
-                url="https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}{r}.png"
-              />
-            </BaseLayer>
-
             {orderedServiceKeys.map((serviceKey) => {
               const features =
                 loadedByService[serviceKey] ?? data?.services[serviceKey] ?? [];
@@ -845,7 +865,7 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
         }
         .leaflet-control-layers-expanded {
           padding: 12px 16px;
-          width: 260px;
+          width: 316px;
         }
         .leaflet-control-layers-list {
           overflow-y: auto;

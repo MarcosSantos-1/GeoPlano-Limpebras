@@ -3,9 +3,9 @@ import "./globals.css";
 import { ThemeWrapper } from "@/components/ThemeWrapper";
 
 export const metadata: Metadata = {
-  title: "Plano de Trabalho - Portal Interativo",
+  title: "GeoPlano - Plano de Trabalho",
   description:
-    "Visualize os planos de trabalho dos serviços NH, LE e VP em um mapa interativo.",
+    "Visualize o Plano de Trabalho em um Mapa Interativo",
 };
 
 export default function RootLayout({
@@ -41,6 +41,12 @@ export default function RootLayout({
         <link
           rel="stylesheet"
           href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
         />
       </head>
       <body className="min-h-screen bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
