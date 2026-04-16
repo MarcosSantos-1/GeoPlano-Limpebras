@@ -1,0 +1,38 @@
+{
+  "services": {
+    "NH": [
+      {
+        "service": "NH",
+        "setor": "DEMO_NH_0001",
+        "name": "Praça Exemplo",
+        "subprefeitura": "Centro",
+        "turno": "Diurno",
+        "frequencia": "Diário",
+        "cronograma": "Segunda a Sábado",
+        "logradouro": "Av. Paulista, 1000",
+        "service_type": "Lavagem Especial de Equipamentos Públicos",
+        "service_type_code": "1",
+        "service_icon": "water",
+        "coords": [
+          [-23.561234, -46.655321],
+          [-23.561900, -46.654210],
+          [-23.562540, -46.655780],
+          [-23.561234, -46.655321]
+        ],
+        "centroid": [-23.561891, -46.655104],
+        "fillColor": "#1f6feb",
+        "lineColor": null,
+        "lineWidth": null,
+        "geometry": "polygon"
+      }
+    ]
+  },
+  "center": [-23.561891, -46.655104],
+  "bounds": {
+    "minLat": -23.56254,
+    "maxLat": -23.561234,
+    "minLon": -46.65578,
+    "maxLon": -46.65421
+  }
+}
+
