@@ -27,7 +27,11 @@ import {
   ServiceGlyphForMap,
 } from "@/lib/serviceIcons";
 import { buildPopupHtml } from "@/lib/popupBuilder";
-import type { GeoJsonObject } from "geojson";
+import type {
+  Feature as GeoJsonFeature,
+  FeatureCollection as GeoJsonFeatureCollection,
+  GeoJsonObject,
+} from "geojson";
 import type { FeatureCollection, FeatureRecord } from "@/lib/types";
 import { parseFeaturesJson } from "@/lib/parseFeaturesJson";
 import type * as Leaflet from "leaflet";
@@ -44,6 +48,34 @@ type MapViewProps = {
 };
 
 const MARKER_ON_LINE_SERVICES = new Set(["CA", "CF_VF_LF"]);
+
+/** Subprefeituras do lote (siglas oficiais no geodata da PMSP). */
+const SUBPREFS_LOTE = [
+  {
+    sg: "CV",
+    toggleKey: "_subprefCV",
+    label: "Casa Verde-Limaão-Cachoeirinha",
+    color: "#16a34a",
+  },
+  {
+    sg: "JT",
+    toggleKey: "_subprefJT",
+    label: "Jaçanã-Tremembé",
+    color: "#1e3a8a",
+  },
+  {
+    sg: "MG",
+    toggleKey: "_subprefMG",
+    label: "Vila Maria-Vila Guilherme",
+    color: "#06b6d4",
+  },
+  {
+    sg: "ST",
+    toggleKey: "_subprefST",
+    label: "Santana-Tucuruvi",
+    color: "#eab308",
+  },
+] as const;
 
 const BASE_LAYERS = [
   { id: "esri-hybrid", emoji: "🛰️", label: "Satélite + Ruas (Esri)" },
@@ -590,6 +622,7 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
   const mapRef = useRef<Leaflet.Map | null>(null);
   const iconCache = useRef<Map<string, Leaflet.DivIcon>>(new Map());
   const [boundaryData, setBoundaryData] = useState<GeoJsonObject | null>(null);
+  const [subprefLoteData, setSubprefLoteData] = useState<GeoJsonFeatureCollection | null>(null);
   const [searchError] = useState<string | null>(null);
 
   const [activeBaseId, setActiveBaseId] = useState<string>(BASE_LAYERS[0].id);
@@ -630,7 +663,10 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
         ? [...(data.serviceKeys ?? [])]
         : Object.keys(data.services ?? {}).filter((k) => (data.services[k]?.length ?? 0) > 0);
       const next = { ...prev };
-      if (next._boundary === undefined) next._boundary = true;
+      if (next._boundary === undefined) next._boundary = false;
+      for (const def of SUBPREFS_LOTE) {
+        if (next[def.toggleKey] === undefined) next[def.toggleKey] = true;
+      }
       for (const k of keys) {
         if (next[k] === undefined) next[k] = false;
       }
@@ -641,7 +677,11 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
   const handleOverlayToggle = useCallback(
     (key: string, checked: boolean) => {
       setOverlayToggles((prev) => ({ ...prev, [key]: checked }));
-      if (data?.splitByService && key !== "_boundary") {
+      if (
+        data?.splitByService &&
+        key !== "_boundary" &&
+        !key.startsWith("_subpref")
+      ) {
         if (checked) void handleServiceAdd(key);
         else handleServiceRemove(key);
       }
@@ -716,6 +756,29 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
   }, [isMounted]);
 
   useEffect(() => {
+    if (!isMounted) return;
+    const controller = new AbortController();
+    const loadSubprefs = async () => {
+      try {
+        const response = await fetch("/subprefeituras-lote-wgs84.geojson", {
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const geojson = (await response.json()) as GeoJsonFeatureCollection;
+        if (geojson.type === "FeatureCollection" && Array.isArray(geojson.features)) {
+          setSubprefLoteData(geojson);
+        }
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          console.warn("Falha ao carregar limites de subprefeituras do lote:", error);
+        }
+      }
+    };
+    void loadSubprefs();
+    return () => controller.abort();
+  }, [isMounted]);
+
+  useEffect(() => {
     if (!L) return;
     const Icon = L.Icon.Default.prototype as L.Icon & { _getIconUrl?: string };
     if (Icon && !Icon._getIconUrl) {
@@ -735,6 +798,16 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
     }
     return null;
   }, [data, L, isMounted]);
+
+  const subprefFeatureBySg = useMemo(() => {
+    const m = new Map<string, GeoJsonFeature>();
+    if (!subprefLoteData?.features) return m;
+    for (const f of subprefLoteData.features) {
+      const sg = (f.properties as { sg_subprefeitura?: string } | null)?.sg_subprefeitura;
+      if (sg) m.set(sg, f);
+    }
+    return m;
+  }, [subprefLoteData]);
 
   const orderedServiceKeys = useMemo(() => {
     if (!data) return [];
@@ -893,7 +966,38 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
             );
           })}
 
-          {boundaryData && overlayToggles._boundary !== false ? (
+          {SUBPREFS_LOTE.map((def) => {
+            const feat = subprefFeatureBySg.get(def.sg);
+            if (!feat || !overlayToggles[def.toggleKey]) return null;
+            const singleFc: GeoJsonFeatureCollection = {
+              type: "FeatureCollection",
+              features: [feat],
+            };
+            return (
+              <FeatureGroup key={def.sg}>
+                <GeoJSON
+                  data={singleFc}
+                  style={() => ({
+                    color: def.color,
+                    weight: 2.5,
+                    fillColor: def.color,
+                    fillOpacity: 0.07,
+                  })}
+                  onEachFeature={(feature, layer) => {
+                    const p = feature.properties as {
+                      nm_subprefeitura?: string;
+                    };
+                    const title = p.nm_subprefeitura ?? def.label;
+                    layer.bindPopup(
+                      `<strong>${def.sg}</strong><br/><span style="font-size:12px">${title}</span>`,
+                    );
+                  }}
+                />
+              </FeatureGroup>
+            );
+          })}
+
+          {boundaryData && overlayToggles._boundary ? (
             <FeatureGroup>
               <GeoJSON
                 data={boundaryData}
@@ -960,6 +1064,48 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
                   );
                 })}
               </ul>
+              {subprefLoteData && subprefLoteData.features.length > 0 ? (
+                <>
+                  <div className="my-2 border-t border-slate-200 dark:border-slate-600/50" />
+                  <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Subprefeituras (lote)
+                  </div>
+                  <ul className="space-y-1">
+                    {SUBPREFS_LOTE.map((def) => {
+                      const hasGeom = subprefFeatureBySg.has(def.sg);
+                      if (!hasGeom) return null;
+                      return (
+                        <li key={def.toggleKey}>
+                          <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm text-slate-800 transition hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700/50">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 shrink-0 rounded border-slate-400 accent-sky-600 dark:border-slate-500 dark:accent-sky-500"
+                              checked={!!overlayToggles[def.toggleKey]}
+                              onChange={(e) =>
+                                handleOverlayToggle(def.toggleKey, e.target.checked)
+                              }
+                            />
+                            <span
+                              className={clsx(
+                                "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold shadow-sm",
+                                def.sg === "ST" ? "text-slate-900" : "text-white",
+                              )}
+                              style={{
+                                borderColor: def.color,
+                                backgroundColor: def.color,
+                              }}
+                              aria-hidden
+                            >
+                              {def.sg}
+                            </span>
+                            <span className="min-w-0 flex-1 leading-snug">{def.label}</span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              ) : null}
               {boundaryData ? (
                 <>
                   <div className="my-2 border-t border-slate-200 dark:border-slate-600/50" />
@@ -967,7 +1113,7 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
                     <input
                       type="checkbox"
                       className="h-4 w-4 shrink-0 rounded border-slate-400 accent-sky-600 dark:border-slate-500 dark:accent-sky-500"
-                      checked={overlayToggles._boundary !== false}
+                      checked={!!overlayToggles._boundary}
                       onChange={(e) => handleOverlayToggle("_boundary", e.target.checked)}
                     />
                     <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-200 dark:border-slate-500/40 dark:bg-slate-800/80">
