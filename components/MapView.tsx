@@ -11,14 +11,12 @@ import {
   FeatureGroup,
   GeoJSON,
   LayerGroup,
-  LayersControl,
   MapContainer,
   Marker,
   Polygon,
   Polyline,
   Popup,
   TileLayer,
-  useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import clsx from "clsx";
@@ -45,48 +43,122 @@ type MapViewProps = {
   data?: FeatureCollection;
 };
 
-const { BaseLayer, Overlay } = LayersControl;
-
 const MARKER_ON_LINE_SERVICES = new Set(["CA", "CF_VF_LF"]);
 
-function overlayControlName(serviceKey: string, htmlLabel: string): string {
-  return `<!--limpebras:${serviceKey}-->${htmlLabel}`;
+const BASE_LAYERS = [
+  { id: "esri-hybrid", emoji: "🛰️", label: "Satélite + Ruas (Esri)" },
+  { id: "esri-sat", emoji: "🛰️", label: "Satélite (Esri)" },
+  { id: "osm", emoji: "🗺️", label: "OpenStreetMap" },
+  { id: "carto-light", emoji: "🗺️", label: "CartoDB Positron" },
+  { id: "carto-dark", emoji: "🌑", label: "CartoDB Dark Matter" },
+] as const;
+
+function ActiveBaseLayers({ baseId }: { baseId: string }) {
+  switch (baseId) {
+    case "esri-hybrid":
+      return (
+        <LayerGroup>
+          <TileLayer
+            attribution='Imagery &copy; <a href="https://www.esri.com/">Esri</a>'
+            url="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+          <TileLayer
+            attribution='Ruas &copy; <a href="https://www.esri.com/">Esri</a>'
+            url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
+            opacity={0.75}
+          />
+          <TileLayer
+            attribution='Limites &copy; <a href="https://www.esri.com/">Esri</a>'
+            url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_And_Places/MapServer/tile/{z}/{y}/{x}"
+            opacity={0.7}
+          />
+        </LayerGroup>
+      );
+    case "esri-sat":
+      return (
+        <TileLayer
+          attribution='Imagery &copy; <a href="https://www.esri.com/">Esri</a>'
+          url="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        />
+      );
+    case "osm":
+      return (
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+      );
+    case "carto-light":
+      return (
+        <TileLayer
+          attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        />
+      );
+    case "carto-dark":
+      return (
+        <TileLayer
+          attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        />
+      );
+    default:
+      return (
+        <LayerGroup>
+          <TileLayer
+            attribution='Imagery &copy; <a href="https://www.esri.com/">Esri</a>'
+            url="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+          <TileLayer
+            attribution='Ruas &copy; <a href="https://www.esri.com/">Esri</a>'
+            url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
+            opacity={0.75}
+          />
+          <TileLayer
+            attribution='Limites &copy; <a href="https://www.esri.com/">Esri</a>'
+            url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_And_Places/MapServer/tile/{z}/{y}/{x}"
+            opacity={0.7}
+          />
+        </LayerGroup>
+      );
+  }
 }
 
-function parseServiceFromOverlayName(name: string): string | null {
-  const m = name.match(/<!--limpebras:([\w_]+)-->/);
-  return m ? m[1] : null;
-}
+/** Ícones claros precisam de círculo escuro no mapa e no menu claro. */
+const FA_LAYER_DARK_BADGE = new Set(["MT", "VJ_VL", "VM", "PV"]);
 
-function OverlayLifecycle({
-  splitByService,
-  onServiceAdd,
-  onServiceRemove,
+function OverlayRowLeading({
+  serviceKey,
+  sample,
 }: {
-  splitByService: boolean;
-  onServiceAdd: (serviceKey: string) => void;
-  onServiceRemove: (serviceKey: string) => void;
+  serviceKey: string;
+  sample?: FeatureRecord;
 }) {
-  const map = useMap();
-  useEffect(() => {
-    const onAdd = (e: Leaflet.LeafletEvent & { name?: string }) => {
-      const key = parseServiceFromOverlayName(String(e.name ?? ""));
-      if (!key || key === "_boundary") return;
-      if (splitByService) onServiceAdd(key);
-    };
-    const onRemove = (e: Leaflet.LeafletEvent & { name?: string }) => {
-      const key = parseServiceFromOverlayName(String(e.name ?? ""));
-      if (!key || key === "_boundary") return;
-      if (splitByService) onServiceRemove(key);
-    };
-    map.on("overlayadd", onAdd);
-    map.on("overlayremove", onRemove);
-    return () => {
-      map.off("overlayadd", onAdd);
-      map.off("overlayremove", onRemove);
-    };
-  }, [map, splitByService, onServiceAdd, onServiceRemove]);
-  return null;
+  const faSpec = getServiceFaLayerSpec(serviceKey);
+  const legacyKey =
+    sample?.service_icon ?? sample?.service_type_code ?? sample?.service_type ?? serviceKey;
+  const iconMeta = faSpec ? null : getServiceIconMeta(legacyKey);
+  const darkBadge = faSpec && FA_LAYER_DARK_BADGE.has(serviceKey);
+  return (
+    <span
+      className={clsx(
+        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border [&_svg]:h-3.5 [&_svg]:w-3.5",
+        darkBadge
+          ? "border-slate-600 bg-slate-700 dark:border-slate-500/50 dark:bg-slate-800/90"
+          : "border-slate-300 bg-slate-100 dark:border-slate-500/40 dark:bg-slate-800/80",
+      )}
+    >
+      {faSpec ? (
+        <i
+          className={clsx(faSpec.iconClass, "text-[13px] leading-none")}
+          style={{ color: faSpec.color }}
+          aria-hidden
+        />
+      ) : (
+        iconMeta?.element
+      )}
+    </span>
+  );
 }
 
 function getPopupHtml(feature: FeatureRecord): string {
@@ -114,8 +186,10 @@ function SearchBar({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [hideSearchGlyph, setHideSearchGlyph] = useState(false);
   const searchMarkerRef = useRef<Leaflet.Marker | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -255,34 +329,49 @@ function SearchBar({
 
   return (
     <div className="absolute left-6 top-6 z-[1000] w-[400px]" style={{ marginLeft: "60px" }}>
-      <form onSubmit={handleSubmit} className="relative">
+      <form ref={formRef} onSubmit={handleSubmit} className="relative">
         <div className="flex items-center gap-2 rounded-lg border-2 border-slate-300 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-800">
-          <input
-            ref={inputRef}
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={() => {
-              if (suggestions.length > 0) setShowSuggestions(true);
-            }}
-            onBlur={() => {
-              const root = inputRef.current;
-              window.setTimeout(() => {
-                const active = document.activeElement;
-                if (!root || !active || !root.contains(active)) {
-                  setShowSuggestions(false);
-                }
-              }, 200);
-            }}
-            placeholder="Pesquisar endereço (ex: av ede 156)..."
-            className="flex-1 rounded-md border-none bg-transparent px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-0 dark:text-slate-200 dark:placeholder:text-slate-400"
-            autoComplete="off"
-          />
+          <div className="relative min-w-0 flex flex-1 items-center">
+            {!hideSearchGlyph && (
+              <span
+                className="pointer-events-none absolute left-3 z-[1] flex h-9 w-9 items-center justify-center rounded-lg bg-primary/12 text-primary ring-1 ring-primary/25 dark:bg-primary/20 dark:ring-primary/35"
+                aria-hidden
+              >
+                <i className="fa-solid fa-magnifying-glass text-base" />
+              </span>
+            )}
+            <input
+              ref={inputRef}
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => {
+                setHideSearchGlyph(true);
+                if (suggestions.length > 0) setShowSuggestions(true);
+              }}
+              onBlur={() => {
+                window.setTimeout(() => {
+                  const active = document.activeElement;
+                  if (!formRef.current?.contains(active)) {
+                    setShowSuggestions(false);
+                    setHideSearchGlyph(false);
+                    setSelectedIndex(-1);
+                  }
+                }, 200);
+              }}
+              placeholder="Pesquisar endereço (ex: av ede 156)..."
+              className={clsx(
+                "min-w-0 flex-1 rounded-md border-none bg-transparent py-3 text-sm text-slate-700 focus:outline-none focus:ring-0 dark:text-slate-200 dark:placeholder:text-slate-400",
+                hideSearchGlyph ? "pl-3 pr-2" : "pl-14 pr-2",
+              )}
+              autoComplete="off"
+            />
+          </div>
           <button
             type="submit"
             disabled={isSearching || !searchQuery.trim()}
-            className="mr-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white uppercase tracking-wide shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mr-2 shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white uppercase tracking-wide shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSearching ? "..." : "Buscar"}
           </button>
@@ -503,6 +592,63 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
   const [boundaryData, setBoundaryData] = useState<GeoJsonObject | null>(null);
   const [searchError] = useState<string | null>(null);
 
+  const [activeBaseId, setActiveBaseId] = useState<string>(BASE_LAYERS[0].id);
+  const [layersMenuOpen, setLayersMenuOpen] = useState(false);
+  const [basemapMenuOpen, setBasemapMenuOpen] = useState(false);
+  const [overlayToggles, setOverlayToggles] = useState<Record<string, boolean>>({});
+  const layersPanelRef = useRef<HTMLDivElement>(null);
+  const basemapPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!layersMenuOpen && !basemapMenuOpen) return;
+    const onDocDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (layersPanelRef.current?.contains(t)) return;
+      if (basemapPanelRef.current?.contains(t)) return;
+      setLayersMenuOpen(false);
+      setBasemapMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, [layersMenuOpen, basemapMenuOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLayersMenuOpen(false);
+        setBasemapMenuOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    setOverlayToggles((prev) => {
+      const keys = data.splitByService
+        ? [...(data.serviceKeys ?? [])]
+        : Object.keys(data.services ?? {}).filter((k) => (data.services[k]?.length ?? 0) > 0);
+      const next = { ...prev };
+      if (next._boundary === undefined) next._boundary = true;
+      for (const k of keys) {
+        if (next[k] === undefined) next[k] = false;
+      }
+      return next;
+    });
+  }, [data]);
+
+  const handleOverlayToggle = useCallback(
+    (key: string, checked: boolean) => {
+      setOverlayToggles((prev) => ({ ...prev, [key]: checked }));
+      if (data?.splitByService && key !== "_boundary") {
+        if (checked) void handleServiceAdd(key);
+        else handleServiceRemove(key);
+      }
+    },
+    [data?.splitByService, handleServiceAdd, handleServiceRemove],
+  );
+
   const searchMarkerIcon = useMemo<Leaflet.DivIcon | null>(() => {
     if (!isMounted || !L) return null;
     const html = renderToString(
@@ -632,11 +778,19 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
       const cacheKey = faSpec ? `fa-svc:${feature.service}` : `leg:${legacyKey}`;
       if (!iconCache.current.has(cacheKey)) {
         const iconMeta = getServiceIconMeta(legacyKey);
+        const darkPin =
+          faSpec &&
+          feature.service &&
+          FA_LAYER_DARK_BADGE.has(feature.service);
         const html = renderToString(
           <div
             className={clsx(
-              "flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 shadow-sm backdrop-blur",
-              faSpec ? "bg-white/95" : iconMeta.bgClass ?? "bg-white/95",
+              "flex h-8 w-8 items-center justify-center rounded-full border shadow-sm backdrop-blur",
+              darkPin
+                ? "border-slate-600 bg-slate-800/95 dark:border-slate-500 dark:bg-slate-900/95"
+                : faSpec
+                  ? "border-slate-200 bg-white/95 dark:border-slate-600/50 dark:bg-white/95"
+                  : iconMeta.bgClass ?? "border-slate-200 bg-white/95",
             )}
           >
             <ServiceGlyphForMap serviceKey={feature.service} legacyIconKey={legacyKey} />
@@ -658,45 +812,13 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
     [L, isMounted],
   );
 
-  const renderBaseLayerLabel = useCallback(
-    (icon: string, label: string) =>
-      renderToString(
-        <span className="layer-label-text">
-          <span className="layer-label-emoji">{icon}</span>
-          <span>{label}</span>
-        </span>,
-      ),
-    [],
-  );
-
-  const renderOverlayLabel = useCallback(
-    (serviceKey: string, displayName: string, sample?: FeatureRecord) => {
-      const faSpec = getServiceFaLayerSpec(serviceKey);
-      const legacyKey =
-        sample?.service_icon ?? sample?.service_type_code ?? sample?.service_type ?? serviceKey;
-      const iconMeta = faSpec ? null : getServiceIconMeta(legacyKey);
-      return renderToString(
-        <span className="layer-label-text">
-          <span className={clsx("layer-service-icon", iconMeta?.bgClass ?? "bg-white")}>
-            {faSpec ? (
-              <i
-                className={clsx(faSpec.iconClass, "text-[15px] leading-none")}
-                style={{ color: faSpec.color }}
-                aria-hidden
-              />
-            ) : (
-              iconMeta?.element
-            )}
-          </span>
-          <span>{displayName}</span>
-        </span>,
-      );
-    },
-    [],
+  const currentBaseLayer = useMemo(
+    () => BASE_LAYERS.find((b) => b.id === activeBaseId) ?? BASE_LAYERS[0],
+    [activeBaseId],
   );
 
   const wrapperClass = "relative flex flex-1 w-full flex-col overflow-hidden border-t border-slate-200 bg-black";
-  const mapWrapperClass = "flex-1 h-full w-full bg-black";
+  const mapWrapperClass = "relative flex-1 h-full w-full bg-black";
   const mapClass = "h-full w-full bg-black";
 
   if (!isMounted || !L) {
@@ -755,176 +877,180 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
             }
           }}
         >
-          <LayersControl position="topright" collapsed={false}>
-            <BaseLayer checked name={renderBaseLayerLabel("🛰️", "Satélite + Ruas (Esri)")}>
-              <LayerGroup>
-                <TileLayer
-                  attribution='Imagery &copy; <a href="https://www.esri.com/">Esri</a>'
-                  url="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                />
-                <TileLayer
-                  attribution='Ruas &copy; <a href="https://www.esri.com/">Esri</a>'
-                  url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"
-                  opacity={0.75}
-                />
-                <TileLayer
-                  attribution='Limites &copy; <a href="https://www.esri.com/">Esri</a>'
-                  url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_And_Places/MapServer/tile/{z}/{y}/{x}"
-                  opacity={0.7}
-                />
-              </LayerGroup>
-            </BaseLayer>
+          <ActiveBaseLayers baseId={activeBaseId} />
 
-            <BaseLayer name={renderBaseLayerLabel("🛰️", "Satélite (Esri)")}>
-              <TileLayer
-                attribution='Imagery &copy; <a href="https://www.esri.com/">Esri</a>'
-                url="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          {orderedServiceKeys.map((serviceKey) => {
+            if (!overlayToggles[serviceKey]) return null;
+            const features =
+              loadedByService[serviceKey] ?? data?.services[serviceKey] ?? [];
+            return (
+              <ServiceLayer
+                key={serviceKey}
+                serviceKey={serviceKey}
+                features={features}
+                getMarkerIcon={getMarkerIcon}
               />
-            </BaseLayer>
+            );
+          })}
 
-            <BaseLayer name={renderBaseLayerLabel("🗺️", "OpenStreetMap")}>
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          {boundaryData && overlayToggles._boundary !== false ? (
+            <FeatureGroup>
+              <GeoJSON
+                data={boundaryData}
+                style={() => ({ color: "#374151", weight: 2.5, dashArray: "5 4", fillOpacity: 0 })}
               />
-            </BaseLayer>
-
-            <BaseLayer name={renderBaseLayerLabel("🗺️", "CartoDB Positron")}>
-              <TileLayer
-                attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
-                url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-              />
-            </BaseLayer>
-
-            <BaseLayer name={renderBaseLayerLabel("🌑", "CartoDB Dark Matter")}>
-              <TileLayer
-                attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              />
-            </BaseLayer>
-
-            {orderedServiceKeys.map((serviceKey) => {
-              const features =
-                loadedByService[serviceKey] ?? data?.services[serviceKey] ?? [];
-              const displayName =
-                data?.serviceLabels?.[serviceKey] ??
-                features[0]?.serviceDisplay ??
-                features[0]?.service ??
-                serviceKey;
-              const labelHtml = renderOverlayLabel(serviceKey, displayName, features[0]);
-              return (
-                <Overlay
-                  key={serviceKey}
-                  name={overlayControlName(serviceKey, labelHtml)}
-                >
-                  <ServiceLayer
-                    serviceKey={serviceKey}
-                    features={features}
-                    getMarkerIcon={getMarkerIcon}
-                  />
-                </Overlay>
-              );
-            })}
-
-            {boundaryData && (
-              <Overlay
-                key="boundary"
-                name={overlayControlName(
-                  "_boundary",
-                  renderOverlayLabel("boundary", "Limite Municipal (São Paulo)", undefined),
-                )}
-                checked
-              >
-                <FeatureGroup>
-                  <GeoJSON
-                    data={boundaryData}
-                    style={() => ({ color: "#374151", weight: 2.5, dashArray: "5 4", fillOpacity: 0 })}
-                  />
-                </FeatureGroup>
-              </Overlay>
-            )}
-          </LayersControl>
-          {data?.splitByService ? (
-            <OverlayLifecycle
-              splitByService
-              onServiceAdd={handleServiceAdd}
-              onServiceRemove={handleServiceRemove}
-            />
+            </FeatureGroup>
           ) : null}
         </MapContainer>
-      </div>
 
-      <style jsx global>{`
-        .leaflet-control-layers {
-          background: rgba(17, 24, 39, 0.88);
-          border-radius: 14px;
-          border: 1px solid rgba(148, 163, 184, 0.35);
-          box-shadow: 0 18px 40px -24px rgba(15, 23, 42, 0.65);
-          backdrop-filter: blur(6px);
-          color: #f8fafc;
-        }
-        .leaflet-control-layers-expanded {
-          padding: 12px 16px;
-          width: 316px;
-        }
-        .leaflet-control-layers-list {
-          overflow-y: auto;
-          max-height: 320px;
-          padding-right: 2px;
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        .leaflet-control-layers-list::-webkit-scrollbar { display: none; }
-        .leaflet-control-layers-base label,
-        .leaflet-control-layers-overlays label {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin: 4px 0;
-          padding: 6px 8px;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: background 0.15s ease, transform 0.15s ease;
-        }
-        .leaflet-control-layers-base label:hover,
-        .leaflet-control-layers-overlays label:hover {
-          background: rgba(148, 163, 184, 0.15);
-          transform: translateX(2px);
-        }
-        .layer-label-text {
-          display: inline-flex;
-          align-items: center;
-          gap: 12px;
-          color: #f8fafc;
-          font-size: 0.85rem;
-          line-height: 1.1;
-        }
-        .layer-label-emoji {
-          display: inline-flex;
-          font-size: 1.2rem;
-          line-height: 1;
-        }
-        .layer-service-icon {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 1.75rem;
-          height: 1.75rem;
-          border-radius: 999px;
-          border: 1px solid rgba(148, 163, 184, 0.4);
-          overflow: hidden;
-        }
-        .layer-service-icon svg { width: 1rem; height: 1rem; }
-        .leaflet-control-layers-selector {
-          transform: scale(1.05);
-          margin-right: 6px;
-          accent-color: #2563eb;
-        }
-        .leaflet-control-layers-separator {
-          border-top: 1px solid rgba(148, 163, 184, 0.35);
-          margin: 10px -4px;
-        }
-      `}</style>
+        <div
+          ref={layersPanelRef}
+          className="pointer-events-auto absolute right-4 top-4 z-[2000] flex flex-col items-end gap-0"
+        >
+          <button
+            type="button"
+            aria-expanded={layersMenuOpen}
+            aria-controls="limpebras-layers-panel"
+            onClick={() => {
+              setLayersMenuOpen((o) => !o);
+              setBasemapMenuOpen(false);
+            }}
+            className="flex items-center gap-2 rounded-xl border border-slate-300/90 bg-white/95 px-3 py-2.5 text-left text-sm font-medium text-slate-900 shadow-lg backdrop-blur-md transition hover:bg-slate-50 dark:border-slate-600/50 dark:bg-slate-950/90 dark:text-slate-100 dark:hover:bg-slate-800/95"
+          >
+            <i className="fa-brands fa-buffer text-lg leading-none text-sky-600 dark:text-sky-400" aria-hidden />
+            <span>Camadas</span>
+            <i
+              className={clsx(
+                "fa-solid fa-chevron-down text-xs text-slate-500 transition dark:text-slate-400",
+                layersMenuOpen && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+          {layersMenuOpen ? (
+            <div
+              id="limpebras-layers-panel"
+              className="mt-2 w-[min(316px,calc(100vw-2rem))] max-h-[min(70vh,420px)] overflow-y-auto rounded-xl border border-slate-200/95 bg-white/95 p-3 text-slate-900 shadow-xl backdrop-blur-md [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden dark:border-slate-600/50 dark:bg-slate-950/95 dark:text-slate-100"
+            >
+              <div className="mb-2 border-b border-slate-200 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-600/50 dark:text-slate-400">
+                Camadas
+              </div>
+              <ul className="space-y-1">
+                {orderedServiceKeys.map((serviceKey) => {
+                  const features =
+                    loadedByService[serviceKey] ?? data?.services[serviceKey] ?? [];
+                  const displayName =
+                    data?.serviceLabels?.[serviceKey] ??
+                    features[0]?.serviceDisplay ??
+                    features[0]?.service ??
+                    serviceKey;
+                  return (
+                    <li key={serviceKey}>
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm text-slate-800 transition hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700/50">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 shrink-0 rounded border-slate-400 accent-sky-600 dark:border-slate-500 dark:accent-sky-500"
+                          checked={!!overlayToggles[serviceKey]}
+                          onChange={(e) => handleOverlayToggle(serviceKey, e.target.checked)}
+                        />
+                        <OverlayRowLeading serviceKey={serviceKey} sample={features[0]} />
+                        <span className="min-w-0 flex-1 leading-snug">{displayName}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+              {boundaryData ? (
+                <>
+                  <div className="my-2 border-t border-slate-200 dark:border-slate-600/50" />
+                  <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm text-slate-800 transition hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700/50">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 shrink-0 rounded border-slate-400 accent-sky-600 dark:border-slate-500 dark:accent-sky-500"
+                      checked={overlayToggles._boundary !== false}
+                      onChange={(e) => handleOverlayToggle("_boundary", e.target.checked)}
+                    />
+                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-200 dark:border-slate-500/40 dark:bg-slate-800/80">
+                      <i
+                        className="fa-solid fa-city text-[13px] text-slate-600 dark:text-slate-300"
+                        aria-hidden
+                      />
+                    </span>
+                    <span className="leading-snug">Limite Municipal (São Paulo)</span>
+                  </label>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          ref={basemapPanelRef}
+          className="pointer-events-auto absolute bottom-4 right-4 z-[2000] flex flex-col items-end"
+        >
+          {basemapMenuOpen ? (
+            <div
+              id="limpebras-basemap-panel"
+              className="mb-2 w-[min(316px,calc(100vw-2rem))] max-h-[min(50vh,360px)] overflow-y-auto rounded-xl border border-slate-200/95 bg-white/95 p-2 text-slate-900 shadow-xl backdrop-blur-md dark:border-slate-600/50 dark:bg-slate-950/95 dark:text-slate-100"
+            >
+              <div className="mb-1 px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Mapa / visualização
+              </div>
+              <ul className="space-y-0.5">
+                {BASE_LAYERS.map((b) => (
+                  <li key={b.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveBaseId(b.id);
+                        setBasemapMenuOpen(false);
+                      }}
+                      className={clsx(
+                        "flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-800 transition hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700/55",
+                        activeBaseId === b.id &&
+                          "bg-sky-50 ring-1 ring-sky-300 dark:bg-sky-600/25 dark:ring-sky-500/40",
+                      )}
+                    >
+                      <span className="text-lg leading-none" aria-hidden>
+                        {b.emoji}
+                      </span>
+                      <span className="leading-snug">{b.label}</span>
+                      {activeBaseId === b.id ? (
+                        <i
+                          className="fa-solid fa-check ml-auto text-xs text-sky-600 dark:text-sky-400"
+                          aria-hidden
+                        />
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            aria-expanded={basemapMenuOpen}
+            aria-controls="limpebras-basemap-panel"
+            onClick={() => {
+              setBasemapMenuOpen((o) => !o);
+              setLayersMenuOpen(false);
+            }}
+            className="flex max-w-[min(316px,calc(100vw-2rem))] items-center gap-2 rounded-xl border border-slate-300/90 bg-white/95 px-3 py-2.5 text-left text-sm font-medium text-slate-900 shadow-lg backdrop-blur-md transition hover:bg-slate-50 dark:border-slate-600/50 dark:bg-slate-950/90 dark:text-slate-100 dark:hover:bg-slate-800/95"
+          >
+            <span className="text-lg leading-none" aria-hidden>
+              {currentBaseLayer.emoji}
+            </span>
+            <span className="min-w-0 truncate">{currentBaseLayer.label}</span>
+            <i
+              className={clsx(
+                "fa-solid fa-chevron-up ml-1 shrink-0 text-xs text-slate-500 transition dark:text-slate-400",
+                basemapMenuOpen && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
