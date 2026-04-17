@@ -197,6 +197,17 @@ function getPopupHtml(feature: FeatureRecord): string {
   return buildPopupHtml(feature);
 }
 
+type SearchSuggestion = {
+  logradouro: string;
+  name: string;
+  setor: string;
+  subprefeitura?: string | null;
+  /** Presente para resultados do índice local / geocode; ausente até Place Details para Google Autocomplete. */
+  centroid?: [number, number];
+  placeId?: string;
+  source?: "local" | "google" | "google_geocode";
+};
+
 // ── Componente de busca ──────────────────────────────────────────────
 function SearchBar({
   mapRef,
@@ -208,13 +219,7 @@ function SearchBar({
   searchMarkerIcon: Leaflet.DivIcon | null;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Array<{
-    logradouro: string;
-    centroid: [number, number];
-    setor: string;
-    name: string;
-    subprefeitura?: string | null;
-  }>>([]);
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -235,13 +240,38 @@ function SearchBar({
     const timeoutId = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
-          signal: AbortSignal.timeout(5000),
-        });
-        if (!response.ok) throw new Error("Erro na busca");
-        const data = await response.json();
-        setSuggestions(data.results || []);
-        setShowSuggestions((data.results || []).length > 0);
+        const signal = AbortSignal.timeout(8000);
+        const [localRes, placesRes] = await Promise.all([
+          fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal }),
+          fetch(`/api/places-autocomplete?q=${encodeURIComponent(query)}`, { signal }),
+        ]);
+        const localJson = localRes.ok ? await localRes.json() : { results: [] };
+        const placesJson = placesRes.ok ? await placesRes.json() : { results: [] };
+        const localList: SearchSuggestion[] = (localJson.results || []).map(
+          (r: {
+            logradouro: string;
+            centroid: [number, number];
+            setor: string;
+            name: string;
+            subprefeitura?: string | null;
+          }) => ({
+            ...r,
+            source: "local" as const,
+          }),
+        );
+        const googleList: SearchSuggestion[] = (placesJson.results || []).map(
+          (r: { logradouro: string; name: string; placeId: string; setor: string; subprefeitura: null }) => ({
+            logradouro: r.logradouro,
+            name: r.name,
+            placeId: r.placeId,
+            setor: r.setor,
+            subprefeitura: r.subprefeitura,
+            source: "google" as const,
+          }),
+        );
+        const merged = [...localList, ...googleList].slice(0, 14);
+        setSuggestions(merged);
+        setShowSuggestions(merged.length > 0);
         setSelectedIndex(-1);
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") return;
@@ -280,6 +310,7 @@ function SearchBar({
         setor: "",
         name: r.display_name || query,
         subprefeitura: null,
+        source: "local" as const,
       }));
     } catch {
       return [];
@@ -287,9 +318,37 @@ function SearchBar({
   };
 
   const selectAddress = useCallback(
-    async (address: (typeof suggestions)[0]) => {
+    async (address: SearchSuggestion) => {
       if (!mapRef.current || !L) return;
-      const destination = L.latLng(address.centroid[0], address.centroid[1]);
+      let lat: number;
+      let lng: number;
+      let label = address.logradouro;
+      const subpref = address.subprefeitura;
+
+      if (address.placeId) {
+        try {
+          const res = await fetch(
+            `/api/places-details?placeId=${encodeURIComponent(address.placeId)}`,
+            { signal: AbortSignal.timeout(10000) },
+          );
+          if (!res.ok) throw new Error("details");
+          const d = (await res.json()) as { lat?: number; lng?: number; formattedAddress?: string };
+          if (typeof d.lat !== "number" || typeof d.lng !== "number") throw new Error("coords");
+          lat = d.lat;
+          lng = d.lng;
+          if (d.formattedAddress) label = d.formattedAddress;
+        } catch {
+          alert("Não foi possível obter a localização deste endereço no Google Places.");
+          return;
+        }
+      } else if (address.centroid) {
+        lat = address.centroid[0];
+        lng = address.centroid[1];
+      } else {
+        return;
+      }
+
+      const destination = L.latLng(lat, lng);
       const map = mapRef.current;
       map.setView(destination, 18, { animate: true, duration: 0.75 });
       if (searchMarkerRef.current) {
@@ -298,9 +357,7 @@ function SearchBar({
       }
       if (searchMarkerIcon) {
         const marker = L.marker(destination, { icon: searchMarkerIcon }).addTo(map);
-        const popupText = address.subprefeitura
-          ? `${address.logradouro} - ${address.subprefeitura}`
-          : address.logradouro;
+        const popupText = subpref ? `${label} — ${subpref}` : label;
         marker.bindPopup(popupText).openPopup();
         searchMarkerRef.current = marker;
       }
@@ -316,18 +373,27 @@ function SearchBar({
     const query = searchQuery.trim();
     if (!query || !mapRef.current || !L) return;
     if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
-      selectAddress(suggestions[selectedIndex]);
+      await selectAddress(suggestions[selectedIndex]);
       return;
     }
     if (suggestions.length > 0) {
-      selectAddress(suggestions[0]);
+      await selectAddress(suggestions[0]);
       return;
     }
     setIsSearching(true);
     try {
+      const googleRes = await fetch(`/api/google-geocode?q=${encodeURIComponent(query)}`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      const googleJson = googleRes.ok ? await googleRes.json() : { results: [] };
+      const googleHits = (googleJson.results || []) as SearchSuggestion[];
+      if (googleHits.length > 0) {
+        await selectAddress(googleHits[0]);
+        return;
+      }
       const nominatimResults = await searchNominatim(query);
       if (nominatimResults.length > 0) {
-        selectAddress(nominatimResults[0]);
+        await selectAddress(nominatimResults[0]);
       } else {
         alert("Endereço não encontrado.");
       }
@@ -413,11 +479,11 @@ function SearchBar({
           <div className="absolute left-0 top-full z-[1001] mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-300 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-800">
             <ul className="py-1">
               {suggestions.map((suggestion, index) => (
-                <li key={`${suggestion.logradouro}-${index}`}>
+                <li key={suggestion.placeId ?? `${suggestion.logradouro}-${index}`}>
                   <button
                     type="button"
                     onClick={() => {
-                      selectAddress(suggestion);
+                      void selectAddress(suggestion);
                       inputRef.current?.blur();
                     }}
                     onMouseEnter={() => setSelectedIndex(index)}
@@ -433,6 +499,9 @@ function SearchBar({
                       <div className="text-xs text-slate-500 dark:text-slate-400">
                         {suggestion.subprefeitura}
                       </div>
+                    )}
+                    {suggestion.source === "google" && (
+                      <div className="text-xs text-slate-400 dark:text-slate-500">Google Places</div>
                     )}
                   </button>
                 </li>
@@ -620,6 +689,9 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
 
   const L = isMounted ? LeafletLib : undefined;
   const mapRef = useRef<Leaflet.Map | null>(null);
+  /** Só aplica fitBounds na primeira vez que o mapa existe (ref estável; evita reset ao abrir menus). */
+  const initialBoundsFitDoneRef = useRef(false);
+  const boundsRef = useRef<Leaflet.LatLngBounds | null>(null);
   const iconCache = useRef<Map<string, Leaflet.DivIcon>>(new Map());
   const [boundaryData, setBoundaryData] = useState<GeoJsonObject | null>(null);
   const [subprefLoteData, setSubprefLoteData] = useState<GeoJsonFeatureCollection | null>(null);
@@ -799,6 +871,26 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
     return null;
   }, [data, L, isMounted]);
 
+  boundsRef.current = bounds;
+
+  const mapContainerRef = useCallback((instance: Leaflet.Map | null) => {
+    if (instance) {
+      mapRef.current = instance;
+      const b = boundsRef.current;
+      if (b && !initialBoundsFitDoneRef.current) {
+        initialBoundsFitDoneRef.current = true;
+        window.setTimeout(() => {
+          const map = mapRef.current;
+          const box = boundsRef.current;
+          if (map && box) map.fitBounds(box, { padding: [24, 24] });
+        }, 100);
+      }
+    } else {
+      mapRef.current = null;
+      initialBoundsFitDoneRef.current = false;
+    }
+  }, []);
+
   const subprefFeatureBySg = useMemo(() => {
     const m = new Map<string, GeoJsonFeature>();
     if (!subprefLoteData?.features) return m;
@@ -939,16 +1031,7 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
           className={mapClass}
           style={{ width: "100%", height: "100%" }}
           preferCanvas={true}
-          ref={(instance) => {
-            if (instance) {
-              mapRef.current = instance;
-              if (bounds) {
-                setTimeout(() => {
-                  if (instance && bounds) instance.fitBounds(bounds, { padding: [24, 24] });
-                }, 100);
-              }
-            }
-          }}
+          ref={mapContainerRef}
         >
           <ActiveBaseLayers baseId={activeBaseId} />
 
