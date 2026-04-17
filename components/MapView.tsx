@@ -47,6 +47,14 @@ type MapViewProps = {
   data?: FeatureCollection;
 };
 
+function getFullscreenElement(): Element | null {
+  const d = document as Document & {
+    webkitFullscreenElement?: Element | null;
+    mozFullScreenElement?: Element | null;
+  };
+  return document.fullscreenElement ?? d.webkitFullscreenElement ?? d.mozFullScreenElement ?? null;
+}
+
 const MARKER_ON_LINE_SERVICES = new Set(["CA", "CF_VF_LF"]);
 
 /** Subprefeituras do lote (siglas oficiais no geodata da PMSP). */
@@ -426,7 +434,7 @@ function SearchBar({
   };
 
   return (
-    <div className="absolute left-6 top-6 z-[1000] w-[400px]" style={{ marginLeft: "60px" }}>
+    <div className="absolute left-6 top-6 z-[1000] w-[500px]" style={{ marginLeft: "60px" }}>
       <form ref={formRef} onSubmit={handleSubmit} className="relative">
         <div className="flex items-center gap-2 rounded-lg border-2 border-slate-300 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-800">
           <div className="relative min-w-0 flex flex-1 items-center">
@@ -703,6 +711,45 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
   const [overlayToggles, setOverlayToggles] = useState<Record<string, boolean>>({});
   const layersPanelRef = useRef<HTMLDivElement>(null);
   const basemapPanelRef = useRef<HTMLDivElement>(null);
+  const fullscreenContainerRef = useRef<HTMLDivElement>(null);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
+
+  const toggleMapFullscreen = useCallback(async () => {
+    const el = fullscreenContainerRef.current;
+    if (!el) return;
+    try {
+      if (getFullscreenElement() === el) {
+        const d = document as Document & { webkitExitFullscreen?: () => Promise<void> };
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (d.webkitExitFullscreen) await d.webkitExitFullscreen();
+      } else {
+        const anyEl = el as HTMLElement & {
+          webkitRequestFullscreen?: () => Promise<void> | void;
+          mozRequestFullScreen?: () => Promise<void> | void;
+        };
+        if (el.requestFullscreen) await el.requestFullscreen();
+        else if (anyEl.webkitRequestFullscreen) await Promise.resolve(anyEl.webkitRequestFullscreen());
+        else if (anyEl.mozRequestFullScreen) await Promise.resolve(anyEl.mozRequestFullScreen());
+      }
+    } catch {
+      /* gesto do usuário / API indisponível */
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncFullscreen = () => {
+      const root = fullscreenContainerRef.current;
+      setMapFullscreen(!!root && getFullscreenElement() === root);
+      window.setTimeout(() => mapRef.current?.invalidateSize(), 120);
+      window.setTimeout(() => mapRef.current?.invalidateSize(), 450);
+    };
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    document.addEventListener("webkitfullscreenchange", syncFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreen);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreen);
+    };
+  }, []);
 
   useEffect(() => {
     if (!layersMenuOpen && !basemapMenuOpen) return;
@@ -1013,7 +1060,7 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
   }
 
   return (
-    <div className={wrapperClass}>
+    <div ref={fullscreenContainerRef} className={wrapperClass}>
       {L && searchMarkerIcon && (
         <SearchBar mapRef={mapRef} L={L} searchMarkerIcon={searchMarkerIcon} />
       )}
@@ -1279,6 +1326,23 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
             />
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => void toggleMapFullscreen()}
+          aria-pressed={mapFullscreen}
+          aria-label={mapFullscreen ? "Sair da tela cheia" : "Mapa em tela cheia"}
+          title={mapFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+          className="pointer-events-auto absolute bottom-4 left-4 z-[2000] flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/90 bg-white/95 text-slate-800 shadow-lg backdrop-blur-md transition hover:bg-slate-50 dark:border-slate-600/50 dark:bg-slate-950/90 dark:text-slate-100 dark:hover:bg-slate-800/95"
+        >
+          <i
+            className={clsx(
+              "fa-solid text-base leading-none",
+              mapFullscreen ? "fa-compress" : "fa-expand",
+            )}
+            aria-hidden
+          />
+        </button>
       </div>
     </div>
   );

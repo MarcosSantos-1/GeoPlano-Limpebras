@@ -19,13 +19,13 @@ export default async function HomePage() {
   // Carrega dados no servidor para já vir no HTML inicial
   const initialData = await loadFeatureData();
   return (
-    <main className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white dark:bg-slate-900">
-      <header className="mx-auto w-full max-w-5xl space-y-2 bg-white px-6 py-8 dark:bg-slate-900">
+    <main className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white dark:bg-zinc-900">
+      <header className="mx-auto w-full max-w-5xl space-y-2 bg-white px-6 py-8 dark:bg-zinc-900">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
               aria-label="Voltar"
             >
               <svg
@@ -42,8 +42,12 @@ export default async function HomePage() {
                 <path d="M19 12H5" />
               </svg>
             </button>
-            <p className="text-xs font-bold uppercase tracking-widest text-primary dark:text-blue-400">
-              Plano de Trabalho - LIMPEBRAS
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary dark:text-blue-400">
+              <i
+                className="fa-solid fa-map text-[15px] leading-none opacity-90"
+                aria-hidden
+              />
+              <span>Plano de Trabalho - LIMPEBRAS</span>
             </p>
           </div>
           <ThemeToggle />
@@ -51,7 +55,7 @@ export default async function HomePage() {
         <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
           Visualize o Plano de Trabalho em um Mapa Interativo
         </h1>
-        <p className="max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+        <p className="max-w-5xl text-sm text-slate-600 dark:text-slate-400">
           Use o mapa para ativar camadas específicas, pesquisar endereços e
           explorar cada área com os detalhes completos do cronograma.
         </p>
