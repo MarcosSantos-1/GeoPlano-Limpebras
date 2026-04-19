@@ -6,6 +6,14 @@ export const metadata: Metadata = {
   title: "GeoPlano - Plano de Trabalho",
   description:
     "Visualize o Plano de Trabalho em um Mapa Interativo",
+  icons: {
+    icon: [
+      { url: "/GeoPlano_logo.svg", type: "image/svg+xml" },
+      { url: "/GeoPlano_logo.png", type: "image/png" },
+    ],
+    shortcut: "/GeoPlano_logo.png",
+    apple: "/GeoPlano_logo.png",
+  },
 };
 
 export default function RootLayout({

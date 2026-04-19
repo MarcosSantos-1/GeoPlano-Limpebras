@@ -1,16 +1,6 @@
+import { MapView } from "@/components/MapView";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { loadFeatureData } from "@/lib/data";
-import dynamicImport from "next/dynamic";
-
-// Carrega MapView apenas no cliente (Leaflet não funciona no servidor)
-const MapView = dynamicImport(
-  () => import("@/components/MapView").then((mod) => mod.MapView),
-  {
-    ssr: false,
-    // Não mostra loading se os dados já estão disponíveis
-    loading: () => null,
-  }
-);
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
