@@ -1,3 +1,1 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:6274ebe9fb73b8eebef9788c1089f55b975250ba77af1520633c9850d44f6668
-size 640
+{"version":1,"splitByService":true,"serviceKeys":["MT","GO","BL","VJ_VL","CA","CF_VF_LF","LE","VM","VP","NH","LM","PV","ECO"],"serviceLabels":{"MT":"Mutirão (MT)","GO":"Cata-Bagulho (GO)","BL":"Limpeza de Bueiros (BL)","VJ_VL":"Varrição Manual (VJ/VL)","CA":"Asseio (CA)","CF_VF_LF":"Feiras (CF / VF / LF)","LE":"Lavagem Especial (LE)","VM":"Varrição Mecanizada (VM)","VP":"Varrição de Praças (VP)","NH":"Núcleos Habitacionais (NH)","LM":"Limpeza de Monumentos","PV":"Pontos Viciados","ECO":"Ecopontos"},"services":{},"center":[-23.48196,-46.6162],"bounds":{"minLat":-23.52852,"maxLat":-23.41532,"minLon":-46.68978,"maxLon":-46.55585}}

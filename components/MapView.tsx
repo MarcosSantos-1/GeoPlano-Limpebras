@@ -55,6 +55,7 @@ function getFullscreenElement(): Element | null {
   return document.fullscreenElement ?? d.webkitFullscreenElement ?? d.mozFullScreenElement ?? null;
 }
 
+/** Ícone no centróide da linha (popup no pin). MT/BL/GO/VM/VJ_VL: só traçado, sem pin na rua. */
 const MARKER_ON_LINE_SERVICES = new Set(["CA", "CF_VF_LF"]);
 
 /** Subprefeituras do lote (siglas oficiais no geodata da PMSP). */
@@ -203,6 +204,21 @@ function OverlayRowLeading({
 
 function getPopupHtml(feature: FeatureRecord): string {
   return buildPopupHtml(feature);
+}
+
+/** Texto opcional abaixo do pin (satélite): Ecopontos, NH, monumentos, PV (só ID). */
+function mapLabelBelowPin(feature: FeatureRecord): string {
+  switch (feature.service) {
+    case "ECO":
+      return (feature.name || feature.setor || "").trim();
+    case "NH":
+    case "LM":
+      return (feature.name || feature.setor || "").trim();
+    case "PV":
+      return (feature.setor || "").trim();
+    default:
+      return "";
+  }
 }
 
 type SearchSuggestion = {
@@ -554,7 +570,7 @@ function ServiceLayer({
     [features],
   );
 
-  const showLineMarkers = MARKER_ON_LINE_SERVICES.has(serviceKey);
+  const showLineCentroidMarkers = MARKER_ON_LINE_SERVICES.has(serviceKey);
 
   return (
     <FeatureGroup>
@@ -574,10 +590,10 @@ function ServiceLayer({
         );
       })}
 
-      {showLineMarkers &&
+      {showLineCentroidMarkers &&
         lineFeatures.map((feature) => (
           <Marker
-            key={`${feature.id ?? feature.setor}-lm`}
+            key={`${feature.id ?? feature.setor}-lc`}
             position={feature.centroid}
             icon={getMarkerIcon(feature) ?? undefined}
           >
@@ -987,17 +1003,23 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
       const legacyKey =
         feature.service_icon ?? feature.service_type_code ?? feature.service_type ?? "default";
       const faSpec = feature.service ? getServiceFaLayerSpec(feature.service) : undefined;
-      const cacheKey = faSpec ? `fa-svc:${feature.service}` : `leg:${legacyKey}`;
+      const pinLabel = mapLabelBelowPin(feature);
+      const cacheKey =
+        pinLabel && ["ECO", "NH", "LM", "PV"].includes(feature.service)
+          ? `fa-lbl:${feature.service}:${feature.id ?? feature.setor}:${pinLabel}`
+          : faSpec
+            ? `fa-svc:${feature.service}`
+            : `leg:${legacyKey}`;
       if (!iconCache.current.has(cacheKey)) {
         const iconMeta = getServiceIconMeta(legacyKey);
         const darkPin =
           faSpec &&
           feature.service &&
           FA_LAYER_DARK_BADGE.has(feature.service);
-        const html = renderToString(
+        const pinCircle = (
           <div
             className={clsx(
-              "flex h-8 w-8 items-center justify-center rounded-full border shadow-sm backdrop-blur",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border shadow-sm backdrop-blur",
               darkPin
                 ? "border-slate-600 bg-slate-800/95 dark:border-slate-500 dark:bg-slate-900/95"
                 : faSpec
@@ -1006,16 +1028,33 @@ export function MapView({ data: initialData }: MapViewProps = {}) {
             )}
           >
             <ServiceGlyphForMap serviceKey={feature.service} legacyIconKey={legacyKey} />
-          </div>,
+          </div>
         );
+        const html = renderToString(
+          pinLabel ? (
+            <div className="flex flex-col items-center gap-0.5">
+              {pinCircle}
+              <span
+                className="line-clamp-2 max-w-[7.25rem] whitespace-normal break-words text-center text-[10px] font-semibold leading-snug text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]"
+                title={pinLabel}
+              >
+                {pinLabel}
+              </span>
+            </div>
+          ) : (
+            pinCircle
+          ),
+        );
+        const w = pinLabel ? 116 : 32;
+        const h = pinLabel ? 52 : 32;
         iconCache.current.set(
           cacheKey,
           L.divIcon({
             html,
             className: "map-marker-icon",
-            iconSize: [32, 32],
-            iconAnchor: [16, 32],
-            popupAnchor: [0, -30],
+            iconSize: [w, h],
+            iconAnchor: [w / 2, h],
+            popupAnchor: [0, -(h - 2)],
           }),
         );
       }
