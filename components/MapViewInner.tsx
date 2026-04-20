@@ -26,7 +26,11 @@ import {
   getServiceIconMeta,
   ServiceGlyphForMap,
 } from "@/lib/serviceIcons";
-import { buildPopupHtml } from "@/lib/popupBuilder";
+import { buildMultiPopupHtml, buildPopupHtml } from "@/lib/popupBuilder";
+import {
+  minDistancePointToPolylineMeters,
+  OVERLAPPING_LINE_PICK_METERS,
+} from "@/lib/polylineDistance";
 import type {
   Feature as GeoJsonFeature,
   FeatureCollection as GeoJsonFeatureCollection,
@@ -452,7 +456,7 @@ function SearchBar({
   return (
     <div className="absolute left-6 top-6 z-[1000] w-[500px]" style={{ marginLeft: "60px" }}>
       <form ref={formRef} onSubmit={handleSubmit} className="relative">
-        <div className="flex items-center gap-2 rounded-lg border-2 border-slate-300 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-800">
+        <div className="flex items-center gap-2 rounded-lg border-2 border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-800">
           <div className="relative min-w-0 flex flex-1 items-center">
             {!hideSearchGlyph && (
               <span
@@ -484,7 +488,7 @@ function SearchBar({
               }}
               placeholder="Pesquisar endereço (ex: av ede 156)..."
               className={clsx(
-                "min-w-0 flex-1 rounded-md border-none bg-transparent py-3 text-sm text-slate-700 focus:outline-none focus:ring-0 dark:text-slate-200 dark:placeholder:text-slate-400",
+                "min-w-0 flex-1 rounded-md border-none bg-transparent py-3 text-sm text-zinc-700 focus:outline-none focus:ring-0 dark:text-zinc-200 dark:placeholder:text-zinc-400",
                 hideSearchGlyph ? "pl-3 pr-2" : "pl-14 pr-2",
               )}
               autoComplete="off"
@@ -500,7 +504,7 @@ function SearchBar({
         </div>
 
         {showSuggestions && suggestions.length > 0 && (
-          <div className="absolute left-0 top-full z-[1001] mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-slate-300 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-800">
+          <div className="absolute left-0 top-full z-[1001] mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-800">
             <ul className="py-1">
               {suggestions.map((suggestion, index) => (
                 <li key={suggestion.placeId ?? `${suggestion.logradouro}-${index}`}>
@@ -515,17 +519,17 @@ function SearchBar({
                       "w-full px-4 py-3 text-left text-sm transition-colors",
                       index === selectedIndex
                         ? "bg-primary/20 text-primary dark:bg-primary/30 dark:text-blue-400"
-                        : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700",
+                        : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700",
                     )}
                   >
                     <div className="font-medium">{suggestion.logradouro}</div>
                     {suggestion.subprefeitura && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                      <div className="text-xs text-zinc-500 dark:text-zinc-400">
                         {suggestion.subprefeitura}
                       </div>
                     )}
                     {suggestion.source === "google" && (
-                      <div className="text-xs text-slate-400 dark:text-slate-500">Google Places</div>
+                      <div className="text-xs text-zinc-400 dark:text-zinc-500">Google Places</div>
                     )}
                   </button>
                 </li>
@@ -535,7 +539,7 @@ function SearchBar({
         )}
 
         {isSearching && searchQuery.trim().length >= 2 && (
-          <div className="absolute left-0 top-full z-[1001] mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-500 shadow-lg dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400">
+          <div className="absolute left-0 top-full z-[1001] mt-1 w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-500 shadow-lg dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
             <div className="flex items-center gap-2">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               <span>Buscando endereços...</span>
@@ -582,11 +586,35 @@ function ServiceLayer({
             key={feature.id ?? `${feature.service}-${feature.setor}-${feature.name}-line`}
             positions={feature.coords}
             pathOptions={{ color, weight, opacity: 0.9 }}
-          >
-            <Popup>
-              <div dangerouslySetInnerHTML={{ __html: getPopupHtml(feature) }} />
-            </Popup>
-          </Polyline>
+            eventHandlers={{
+              click: (e) => {
+                const ll = e.latlng;
+                const p: [number, number] = [ll.lat, ll.lng];
+                const scored = lineFeatures
+                  .map((f) => ({
+                    f,
+                    d: minDistancePointToPolylineMeters(p, f.coords),
+                  }))
+                  .filter((x) => x.d <= OVERLAPPING_LINE_PICK_METERS)
+                  .sort((a, b) => a.d - b.d);
+                const seen = new Set<string>();
+                const uniq: FeatureRecord[] = [];
+                for (const { f } of scored) {
+                  const k = f.id ?? `${f.service}-${f.setor}-${f.name}`;
+                  if (seen.has(k)) continue;
+                  seen.add(k);
+                  uniq.push(f);
+                }
+                const html =
+                  uniq.length === 0
+                    ? getPopupHtml(feature)
+                    : uniq.length === 1
+                      ? getPopupHtml(uniq[0])
+                      : buildMultiPopupHtml(uniq);
+                e.target.bindPopup(html).openPopup();
+              },
+            }}
+          />
         );
       })}
 

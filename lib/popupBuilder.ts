@@ -1,5 +1,27 @@
 import type { FeatureRecord } from "./types";
 
+/** Códigos de planilha (401, 407, 3xx) em vez de texto de frequência. */
+function isPlaceholderFrequency(value: string | null | undefined): boolean {
+  if (value == null || value === "") return false;
+  const t = value.trim().replace(",", ".");
+  if (
+    ["401", "403", "404", "405", "407", "302", "303", "304", "305", "306"].includes(t)
+  ) {
+    return true;
+  }
+  const n = Number.parseFloat(t);
+  if (!Number.isNaN(n) && n === Math.floor(n) && n >= 300 && n <= 499) {
+    return true;
+  }
+  return false;
+}
+
+function displayFrequency(value: string | null | undefined): string {
+  if (value == null || value === "") return "—";
+  if (isPlaceholderFrequency(value)) return "—";
+  return value;
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -59,7 +81,7 @@ export function buildPopupHtml(feature: FeatureRecord): string {
     body += row("Logradouro", feature.logradouro);
     body += row("Subprefeitura", feature.subprefeitura);
     body += row("Turno", feature.turno);
-    body += row("Frequência", feature.frequencia);
+    body += row("Frequência", displayFrequency(feature.frequencia));
     if (feature.volumetria) {
       body += row("Volumetria", feature.volumetria);
     }
@@ -76,5 +98,24 @@ export function buildPopupHtml(feature: FeatureRecord): string {
     `<tr><th colspan="2" style="padding:5px 8px;background:#1f6feb;color:#fff;text-align:left;font-size:12px;font-weight:600;">${escapeHtml(title)}</th></tr>` +
     body +
     `</table>`
+  );
+}
+
+/** Várias linhas no mesmo trecho: mostra um bloco por setor/frequência. */
+export function buildMultiPopupHtml(features: FeatureRecord[]): string {
+  if (features.length === 0) return "";
+  if (features.length === 1) return buildPopupHtml(features[0]);
+  const intro =
+    `<p style="margin:0 0 8px 0;padding:6px 8px;background:#fef3c7;color:#92400e;font-size:11px;border-radius:6px;border:1px solid #fcd34d;">` +
+    `Várias rotas coincidem neste trecho. Seguem os dados de cada uma:` +
+    `</p>`;
+  const blocks = features
+    .map((f) => `<div style="margin-bottom:10px;">${buildPopupHtml(f)}</div>`)
+    .join("");
+  return (
+    `<div style="max-height:min(70vh,480px);overflow:auto;width:min(420px,92vw);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">` +
+    intro +
+    blocks +
+    `</div>`
   );
 }
