@@ -26,7 +26,7 @@ import {
   getServiceIconMeta,
   ServiceGlyphForMap,
 } from "@/lib/serviceIcons";
-import { buildMultiPopupHtml, buildPopupHtml } from "@/lib/popupBuilder";
+import { buildPopupHtml, buildVmOverlapPopupHtml } from "@/lib/popupBuilder";
 import {
   minDistancePointToPolylineMeters,
   OVERLAPPING_LINE_PICK_METERS,
@@ -614,7 +614,7 @@ function ServiceLayer({
                     : uniq.length === 1 ||
                         !LINE_CLICK_MULTI_SECTOR_POPUP.has(serviceKey)
                       ? getPopupHtml(uniq[0])
-                      : buildMultiPopupHtml(uniq);
+                      : buildVmOverlapPopupHtml(uniq);
                 e.target.bindPopup(html).openPopup();
               },
             }}

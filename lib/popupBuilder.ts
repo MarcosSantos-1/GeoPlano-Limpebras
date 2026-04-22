@@ -101,21 +101,47 @@ export function buildPopupHtml(feature: FeatureRecord): string {
   );
 }
 
-/** Várias linhas no mesmo trecho: mostra um bloco por setor/frequência. */
-export function buildMultiPopupHtml(features: FeatureRecord[]): string {
+/**
+ * Várias rotas VM no mesmo trecho: tabela compacta (Set., T., Freq.) sem scroll.
+ */
+export function buildVmOverlapPopupHtml(features: FeatureRecord[]): string {
   if (features.length === 0) return "";
   if (features.length === 1) return buildPopupHtml(features[0]);
-  const intro =
-    `<p style="margin:0 0 8px 0;padding:6px 8px;background:#fef3c7;color:#92400e;font-size:11px;border-radius:6px;border:1px solid #fcd34d;">` +
-    `Várias rotas coincidem neste trecho. Seguem os dados de cada uma:` +
-    `</p>`;
-  const blocks = features
-    .map((f) => `<div style="margin-bottom:10px;">${buildPopupHtml(f)}</div>`)
+  const first = features[0];
+  const title =
+    (first.logradouro && first.logradouro.trim()) ||
+    (first.name && first.name.trim()) ||
+    (first.serviceDisplay && first.serviceDisplay.trim()) ||
+    first.service ||
+    "Varrição mecanizada";
+
+  const rows = features
+    .map((f) => {
+      const set = (f.setor && f.setor.trim()) || "—";
+      const t = (f.turno && f.turno.trim()) || "—";
+      const freqRaw = displayFrequency(f.frequencia);
+      const freq = freqRaw === "—" ? "—" : freqRaw;
+      return (
+        `<tr>` +
+        `<td style="padding:4px 5px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#111827;vertical-align:top;word-break:break-word;">${set === "—" ? "—" : escapeHtml(set)}</td>` +
+        `<td style="padding:4px 5px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#111827;vertical-align:top;white-space:nowrap;">${t === "—" ? "—" : escapeHtml(t)}</td>` +
+        `<td style="padding:4px 5px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#111827;vertical-align:top;word-break:break-word;">${freq === "—" ? "—" : escapeHtml(freq)}</td>` +
+        `</tr>`
+      );
+    })
     .join("");
+
   return (
-    `<div style="max-height:min(70vh,480px);overflow:auto;width:min(420px,92vw);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">` +
-    intro +
-    blocks +
+    `<div style="width:min(300px,92vw);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">` +
+    `<table style="border-collapse:collapse;width:100%;table-layout:fixed;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">` +
+    `<tr><th colspan="3" style="padding:5px 8px;background:#1f6feb;color:#fff;text-align:left;font-size:12px;font-weight:600;">${escapeHtml(title)}</th></tr>` +
+    `<tr style="background:#f3f4f6;">` +
+    `<th style="padding:4px 5px;text-align:left;font-size:10px;font-weight:700;color:#374151;border-bottom:1px solid #d1d5db;width:42%;">Set.</th>` +
+    `<th style="padding:4px 5px;text-align:left;font-size:10px;font-weight:700;color:#374151;border-bottom:1px solid #d1d5db;width:22%;">T.</th>` +
+    `<th style="padding:4px 5px;text-align:left;font-size:10px;font-weight:700;color:#374151;border-bottom:1px solid #d1d5db;width:36%;">Freq.</th>` +
+    `</tr>` +
+    rows +
+    `</table>` +
     `</div>`
   );
 }
