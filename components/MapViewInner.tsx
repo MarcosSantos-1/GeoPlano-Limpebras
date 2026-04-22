@@ -62,6 +62,9 @@ function getFullscreenElement(): Element | null {
 /** Ícone no centróide da linha (popup no pin). MT/BL/GO/VM/VJ_VL: só traçado, sem pin na rua. */
 const MARKER_ON_LINE_SERVICES = new Set(["CA", "CF_VF_LF"]);
 
+/** No clique na linha, só VM lista vários setores no mesmo ponto; demais serviços têm um setor/frequência por trecho. */
+const LINE_CLICK_MULTI_SECTOR_POPUP = new Set(["VM"]);
+
 /** Subprefeituras do lote (siglas oficiais no geodata da PMSP). */
 const SUBPREFS_LOTE = [
   {
@@ -608,7 +611,8 @@ function ServiceLayer({
                 const html =
                   uniq.length === 0
                     ? getPopupHtml(feature)
-                    : uniq.length === 1
+                    : uniq.length === 1 ||
+                        !LINE_CLICK_MULTI_SECTOR_POPUP.has(serviceKey)
                       ? getPopupHtml(uniq[0])
                       : buildMultiPopupHtml(uniq);
                 e.target.bindPopup(html).openPopup();
