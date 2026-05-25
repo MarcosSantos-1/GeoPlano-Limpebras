@@ -91,6 +91,24 @@ const SUBPREFS_LOTE = [
     label: "Santana-Tucuruvi",
     color: "#eab308",
   },
+  {
+    sg: "CT",
+    toggleKey: "_subprefCT",
+    label: "Cidade Tiradentes",
+    color: "#c8a2c8",
+  },
+  {
+    sg: "GN",
+    toggleKey: "_subprefGN",
+    label: "Guaianases",
+    color: "#f97316",
+  },
+  {
+    sg: "IQ",
+    toggleKey: "_subprefIQ",
+    label: "Itaquera",
+    color: "#ef4444",
+  },
 ] as const;
 
 const BASE_LAYERS = [

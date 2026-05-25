@@ -1,0 +1,353 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:0",
+        "service": "ECO",
+        "setor": "Vila Guilherme",
+        "name": "Vila Guilherme",
+        "centroid": [
+          -23.51714,
+          -46.60041
+        ],
+        "fillColor": "#e5955b",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "MG",
+        "logradouro": "Rua José Bernardo Pinto, 1480",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Rua José Bernardo Pinto, 1480"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.60041,
+          -23.51714
+        ]
+      },
+      "id": "ECO:0"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:1",
+        "service": "ECO",
+        "setor": "Vila Nova Cachoeirinha",
+        "name": "Vila Nova Cachoeirinha",
+        "centroid": [
+          -23.47213,
+          -46.6698
+        ],
+        "fillColor": "#5b7be5",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "CV",
+        "logradouro": "Rua Felix Alves Pereira, 113",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Rua Felix Alves Pereira, 113"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.6698,
+          -23.47213
+        ]
+      },
+      "id": "ECO:1"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:2",
+        "service": "ECO",
+        "setor": "Tucuruvi",
+        "name": "Tucuruvi",
+        "centroid": [
+          -23.46741,
+          -46.61017
+        ],
+        "fillColor": "#5be5b9",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "ST",
+        "logradouro": "Rua Eduardo Vicente Nasser, 519",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Rua Eduardo Vicente Nasser, 519"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.61017,
+          -23.46741
+        ]
+      },
+      "id": "ECO:2"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:3",
+        "service": "ECO",
+        "setor": "Santana",
+        "name": "Santana",
+        "centroid": [
+          -23.51115,
+          -46.62145
+        ],
+        "fillColor": "#5be5b9",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "ST",
+        "logradouro": "Avenida Zaki Narchi, 375",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Avenida Zaki Narchi, 375"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.62145,
+          -23.51115
+        ]
+      },
+      "id": "ECO:3"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:4",
+        "service": "ECO",
+        "setor": "Silvio Bittencourt",
+        "name": "Silvio Bittencourt",
+        "centroid": [
+          -23.457,
+          -46.58848
+        ],
+        "fillColor": "#5be569",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "JT",
+        "logradouro": "Rua Maria Amália Lopes Azevedo, 4008",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Rua Maria Amália Lopes Azevedo, 4008"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.58848,
+          -23.457
+        ]
+      },
+      "id": "ECO:4"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:5",
+        "service": "ECO",
+        "setor": "Anselmo Machado",
+        "name": "Anselmo Machado",
+        "centroid": [
+          -23.45891,
+          -46.58571
+        ],
+        "fillColor": "#5be569",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "JT",
+        "logradouro": "Avenida Paulo Lincoln do Valle Pontin, 550 (altura)",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Avenida Paulo Lincoln do Valle Pontin, 550 (altura)"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.58571,
+          -23.45891
+        ]
+      },
+      "id": "ECO:5"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:6",
+        "service": "ECO",
+        "setor": "Parque Peruche",
+        "name": "Parque Peruche",
+        "centroid": [
+          -23.49171,
+          -46.65598
+        ],
+        "fillColor": "#5b7be5",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "CV",
+        "logradouro": "Avenida Engenheiro Caetano Álvares, 3142",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Avenida Engenheiro Caetano Álvares, 3142"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.65598,
+          -23.49171
+        ]
+      },
+      "id": "ECO:6"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:7",
+        "service": "ECO",
+        "setor": "Vila Santa Maria",
+        "name": "Vila Santa Maria",
+        "centroid": [
+          -23.49401,
+          -46.67156
+        ],
+        "fillColor": "#5b7be5",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "CV",
+        "logradouro": "Rua André Bolsena x Travessa Luiz Sá",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Rua André Bolsena x Travessa Luiz Sá"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.67156,
+          -23.49401
+        ]
+      },
+      "id": "ECO:7"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:8",
+        "service": "ECO",
+        "setor": "Vila Sabrina",
+        "name": "Vila Sabrina",
+        "centroid": [
+          -23.48638,
+          -46.56563
+        ],
+        "fillColor": "#e5955b",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "MG",
+        "logradouro": "Avenida dos Poetas, 931",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Avenida dos Poetas, 931"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.56563,
+          -23.48638
+        ]
+      },
+      "id": "ECO:8"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:9",
+        "service": "ECO",
+        "setor": "Vila Maria",
+        "name": "Vila Maria",
+        "centroid": [
+          -23.51973,
+          -46.58082
+        ],
+        "fillColor": "#e5955b",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "MG",
+        "logradouro": "Rua Curuçá, 1700",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Rua Curuçá, 1700"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.58082,
+          -23.51973
+        ]
+      },
+      "id": "ECO:9"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:10",
+        "service": "ECO",
+        "setor": "Jardim Antártica",
+        "name": "Jardim Antártica",
+        "centroid": [
+          -23.45495,
+          -46.65951
+        ],
+        "fillColor": "#5b7be5",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "CV",
+        "logradouro": "Rua Dom Aquino, 309",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Rua Dom Aquino, 309"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.65951,
+          -23.45495
+        ]
+      },
+      "id": "ECO:10"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ECO:11",
+        "service": "ECO",
+        "setor": "São Leandro",
+        "name": "São Leandro",
+        "centroid": [
+          -23.4966,
+          -46.68381
+        ],
+        "fillColor": "#5b7be5",
+        "geometry": "point",
+        "serviceDisplay": "Ecopontos",
+        "subprefeitura": "CV",
+        "logradouro": "Rua São Leandro, 13",
+        "service_type": "Ecopontos",
+        "service_icon": "ecoponto",
+        "address": "Rua São Leandro, 13"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -46.68381,
+          -23.4966
+        ]
+      },
+      "id": "ECO:11"
+    }
+  ]
+}
