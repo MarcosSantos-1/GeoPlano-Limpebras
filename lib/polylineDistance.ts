@@ -28,11 +28,25 @@ function distancePointToSegmentMeters(
   return Math.hypot(px - cx, py - cy);
 }
 
+type LineCoords = [number, number][] | [number, number][][];
+
+function isMultiLine(coords: LineCoords): coords is [number, number][][] {
+  return Array.isArray(coords[0]?.[0]);
+}
+
 /** Menor distância do ponto a qualquer segmento da polilinha (metros). */
 export function minDistancePointToPolylineMeters(
   p: [number, number],
-  coords: [number, number][],
+  coords: LineCoords,
 ): number {
+  if (isMultiLine(coords)) {
+    let m = Infinity;
+    for (const segment of coords) {
+      const d = minDistancePointToPolylineMeters(p, segment);
+      if (d < m) m = d;
+    }
+    return m;
+  }
   if (coords.length < 2) return Infinity;
   let m = Infinity;
   for (let i = 0; i < coords.length - 1; i++) {

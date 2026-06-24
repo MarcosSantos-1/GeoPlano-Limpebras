@@ -12,12 +12,12 @@ export type FeatureRecord = {
   service_type?: string | null;
   service_type_code?: string | null;
   service_icon?: string | null;
-  coords: [number, number][];
+  coords: [number, number][] | [number, number][][];
   centroid: [number, number];
   fillColor: string;
   lineColor?: string | null;
   lineWidth?: number | null;
-  geometry?: "polygon" | "line" | "point";
+  geometry?: "polygon" | "line" | "multiline" | "point";
   volumetria?: string | null;
   address?: string | null;
   date?: string | null;

@@ -60,7 +60,10 @@ function getFullscreenElement(): Element | null {
 }
 
 /** Ícone no centróide da linha (popup no pin). MT/BL/GO/VM/VJ_VL: só traçado, sem pin na rua. */
-const MARKER_ON_LINE_SERVICES = new Set(["CA", "CF_VF_LF"]);
+const MARKER_ON_LINE_SERVICES = new Set(["CA", "CF_VF_LF", "LE"]);
+const DEFAULT_LINE_WEIGHT = 4.15;
+const DEFAULT_POLYGON_LINE_WEIGHT = 2.3;
+const SEARCH_POINT_PICK_METERS = 70;
 
 /** No clique na linha, só VM lista vários setores no mesmo ponto; demais serviços têm um setor/frequência por trecho. */
 const LINE_CLICK_MULTI_SECTOR_POPUP = new Set(["VM"]);
@@ -90,24 +93,6 @@ const SUBPREFS_LOTE = [
     toggleKey: "_subprefST",
     label: "Santana-Tucuruvi",
     color: "#eab308",
-  },
-  {
-    sg: "CT",
-    toggleKey: "_subprefCT",
-    label: "Cidade Tiradentes",
-    color: "#c8a2c8",
-  },
-  {
-    sg: "GN",
-    toggleKey: "_subprefGN",
-    label: "Guaianases",
-    color: "#f97316",
-  },
-  {
-    sg: "IQ",
-    toggleKey: "_subprefIQ",
-    label: "Itaquera",
-    color: "#ef4444",
   },
 ] as const;
 
@@ -257,15 +242,104 @@ type SearchSuggestion = {
   source?: "local" | "google" | "google_geocode";
 };
 
+type SearchLocation = {
+  coords: [number, number];
+  label: string;
+  subprefeitura?: string | null;
+};
+
+function pointInPolygon(point: [number, number], ring: [number, number][]): boolean {
+  if (ring.length < 3) return false;
+  const [lat, lon] = point;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [latI, lonI] = ring[i];
+    const [latJ, lonJ] = ring[j];
+    const intersects =
+      latI > lat !== latJ > lat &&
+      lon < ((lonJ - lonI) * (lat - latI)) / (latJ - latI || Number.EPSILON) + lonI;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function escapeSearchHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function isFeatureAtPoint(feature: FeatureRecord, point: [number, number]): boolean {
+  const geometry = feature.geometry ?? "polygon";
+  if (geometry === "line" || geometry === "multiline") {
+    return minDistancePointToPolylineMeters(point, feature.coords) <= OVERLAPPING_LINE_PICK_METERS;
+  }
+  if (geometry === "point") {
+    const coords = feature.coords as [number, number][];
+    const first = coords[0];
+    return !!first && minDistancePointToPolylineMeters(point, [first, first]) <= SEARCH_POINT_PICK_METERS;
+  }
+  const coords = feature.coords as [number, number][];
+  return pointInPolygon(point, coords) || minDistancePointToPolylineMeters(point, coords) <= OVERLAPPING_LINE_PICK_METERS;
+}
+
+function buildSearchMatchesHtml(matches: FeatureRecord[]): string {
+  if (matches.length === 0) return "";
+  if (matches.length === 1) return buildPopupHtml(matches[0]);
+  const firstService = matches[0]?.service;
+  const isSingleVmSet = firstService === "VM" && matches.every((feature) => feature.service === "VM");
+  if (isSingleVmSet) return buildVmOverlapPopupHtml(matches);
+  return matches
+    .map((feature) => `<div style="margin-bottom:10px;">${buildPopupHtml(feature)}</div>`)
+    .join("");
+}
+
+function buildSearchPopupHtml(location: SearchLocation, matches: FeatureRecord[], hasActiveService: boolean): string {
+  const title = location.subprefeitura
+    ? `${location.label} — ${location.subprefeitura}`
+    : location.label;
+  const safeTitle = escapeSearchHtml(title);
+  const intro =
+    `<div style="margin:0 0 8px 0;padding:6px 8px;background:#eff6ff;color:#1e3a8a;font-size:11px;border-radius:6px;border:1px solid #bfdbfe;">` +
+    `${safeTitle}` +
+    `</div>`;
+  if (!hasActiveService) {
+    return (
+      `<div style="max-width:min(420px,92vw);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">` +
+      intro +
+      `<div style="padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#374151;font-size:12px;">Nenhuma camada de serviço ativa.</div>` +
+      `</div>`
+    );
+  }
+  if (matches.length === 0) {
+    return (
+      `<div style="max-width:min(420px,92vw);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">` +
+      intro +
+      `<div style="padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#374151;font-size:12px;">Nenhum serviço ativo encontrado neste ponto.</div>` +
+      `</div>`
+    );
+  }
+  return (
+    `<div style="max-height:min(70vh,480px);overflow:auto;width:min(420px,92vw);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">` +
+    intro +
+    buildSearchMatchesHtml(matches) +
+    `</div>`
+  );
+}
+
 // ── Componente de busca ──────────────────────────────────────────────
 function SearchBar({
   mapRef,
   L,
   searchMarkerIcon,
+  onSelectLocation,
 }: {
   mapRef: React.RefObject<Leaflet.Map | null>;
   L: typeof Leaflet | undefined;
   searchMarkerIcon: Leaflet.DivIcon | null;
+  onSelectLocation: (location: SearchLocation) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
@@ -406,15 +480,14 @@ function SearchBar({
       }
       if (searchMarkerIcon) {
         const marker = L.marker(destination, { icon: searchMarkerIcon }).addTo(map);
-        const popupText = subpref ? `${label} — ${subpref}` : label;
-        marker.bindPopup(popupText).openPopup();
         searchMarkerRef.current = marker;
       }
+      onSelectLocation({ coords: [lat, lng], label, subprefeitura: subpref });
       setSearchQuery("");
       setShowSuggestions(false);
       setSelectedIndex(-1);
     },
-    [mapRef, L, searchMarkerIcon],
+    [mapRef, L, onSelectLocation, searchMarkerIcon],
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -583,7 +656,7 @@ function ServiceLayer({
   getMarkerIcon: (f: FeatureRecord) => Leaflet.DivIcon | null;
 }) {
   const lineFeatures = useMemo(
-    () => features.filter((f) => (f.geometry ?? "polygon") === "line"),
+    () => features.filter((f) => ["line", "multiline"].includes(f.geometry ?? "polygon")),
     [features],
   );
   const pointFeatures = useMemo(
@@ -601,11 +674,11 @@ function ServiceLayer({
     <FeatureGroup>
       {lineFeatures.map((feature) => {
         const color = feature.lineColor || feature.fillColor || "#1f6feb";
-        const weight = feature.lineWidth || 3.6;
+        const weight = feature.lineWidth || DEFAULT_LINE_WEIGHT;
         return (
           <Polyline
             key={feature.id ?? `${feature.service}-${feature.setor}-${feature.name}-line`}
-            positions={feature.coords}
+            positions={feature.coords as Leaflet.LatLngExpression[] | Leaflet.LatLngExpression[][]}
             pathOptions={{ color, weight, opacity: 0.9 }}
             eventHandlers={{
               click: (e) => {
@@ -656,10 +729,10 @@ function ServiceLayer({
       {polygonFeatures.map((feature) => (
         <Polygon
           key={feature.id ?? `${feature.service}-${feature.setor}-poly`}
-          positions={feature.coords}
+          positions={feature.coords as Leaflet.LatLngExpression[]}
           pathOptions={{
             color: feature.fillColor || "#1f6feb",
-            weight: feature.lineWidth || 2,
+            weight: feature.lineWidth || DEFAULT_POLYGON_LINE_WEIGHT,
             fillOpacity: 0.35,
           }}
         >
@@ -682,8 +755,9 @@ function ServiceLayer({
       ))}
 
       {pointFeatures.map((feature) => {
-        if (!feature.coords?.length) return null;
-        const [lat, lon] = feature.coords[0];
+        const coords = feature.coords as [number, number][];
+        if (!coords?.length) return null;
+        const [lat, lon] = coords[0];
         return (
           <Marker
             key={`${feature.id ?? feature.setor}-pt`}
@@ -770,6 +844,8 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
   const [boundaryData, setBoundaryData] = useState<GeoJsonObject | null>(null);
   const [subprefLoteData, setSubprefLoteData] = useState<GeoJsonFeatureCollection | null>(null);
   const [searchError] = useState<string | null>(null);
+  const [selectedSearchLocation, setSelectedSearchLocation] = useState<SearchLocation | null>(null);
+  const searchInfoPopupRef = useRef<Leaflet.Popup | null>(null);
 
   const [activeBaseId, setActiveBaseId] = useState<string>(BASE_LAYERS[0].id);
   const [layersMenuOpen, setLayersMenuOpen] = useState(false);
@@ -1045,6 +1121,49 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
     return [...escalonados, ...outrosSorted];
   }, [data]);
 
+  const searchMatches = useMemo(() => {
+    const activeKeys = orderedServiceKeys.filter((key) => !!overlayToggles[key]);
+    if (!selectedSearchLocation) {
+      return { hasActiveService: activeKeys.length > 0, matches: [] as FeatureRecord[] };
+    }
+    const matches: FeatureRecord[] = [];
+    const seen = new Set<string>();
+    for (const serviceKey of activeKeys) {
+      const features = loadedByService[serviceKey] ?? data?.services[serviceKey] ?? [];
+      for (const feature of features) {
+        if (!isFeatureAtPoint(feature, selectedSearchLocation.coords)) continue;
+        const key = feature.id ?? `${feature.service}-${feature.setor}-${feature.name}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        matches.push(feature);
+      }
+    }
+    return { hasActiveService: activeKeys.length > 0, matches };
+  }, [data?.services, loadedByService, orderedServiceKeys, overlayToggles, selectedSearchLocation]);
+
+  useEffect(() => {
+    if (!selectedSearchLocation || !mapRef.current || !L) return;
+    const popup =
+      searchInfoPopupRef.current ??
+      L.popup({
+        maxWidth: 460,
+        closeButton: true,
+        autoPan: true,
+        className: "search-info-popup",
+      });
+    popup
+      .setLatLng(selectedSearchLocation.coords)
+      .setContent(
+        buildSearchPopupHtml(
+          selectedSearchLocation,
+          searchMatches.matches,
+          searchMatches.hasActiveService,
+        ),
+      )
+      .openOn(mapRef.current);
+    searchInfoPopupRef.current = popup;
+  }, [L, searchMatches, selectedSearchLocation]);
+
   const mapCenter = useMemo(() => data?.center ?? [-23.491507, -46.610730], [data]);
 
   const getMarkerIcon = useCallback(
@@ -1151,7 +1270,12 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
   return (
     <div ref={fullscreenContainerRef} className={wrapperClass}>
       {L && searchMarkerIcon && (
-        <SearchBar mapRef={mapRef} L={L} searchMarkerIcon={searchMarkerIcon} />
+        <SearchBar
+          mapRef={mapRef}
+          L={L}
+          searchMarkerIcon={searchMarkerIcon}
+          onSelectLocation={setSelectedSearchLocation}
+        />
       )}
 
       {searchError && (

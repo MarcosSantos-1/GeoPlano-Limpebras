@@ -1,8 +1,6 @@
 /**
- * Lê public/geoportal_subprefeitura_v2.geojson (EPSG:31983), filtra os lotes
- * atendidos pela Limpebras (Lote III: CV/JT/MG/ST + Lote V: CT/GN/IQ — sigla
- * "GU" no geoportal vira "GN" no portal) e grava public/subprefeituras-lote-wgs84.geojson
- * (WGS84, GeoJSON padrão lon,lat).
+ * Lê public/geoportal_subprefeitura_v2.geojson (EPSG:31983), filtra o lote
+ * (CV / JT / MG / ST) e grava public/subprefeituras-lote-wgs84.geojson (WGS84, GeoJSON padrão lon,lat).
  */
 const fs = require("fs");
 const path = require("path");
@@ -10,8 +8,7 @@ const proj4 = require("proj4");
 
 const SRC = path.join(__dirname, "..", "public", "geoportal_subprefeitura_v2.geojson");
 const OUT = path.join(__dirname, "..", "public", "subprefeituras-lote-wgs84.geojson");
-const LOT = new Set(["CV", "JT", "MG", "ST", "CT", "GU", "IQ"]);
-const SG_REWRITE = { GU: "GN" };
+const LOT = new Set(["CV", "JT", "MG", "ST"]);
 
 proj4.defs(
   "EPSG:31983",
@@ -49,18 +46,14 @@ function main() {
   const raw = JSON.parse(fs.readFileSync(SRC, "utf8"));
   const features = (raw.features || [])
     .filter((f) => LOT.has(f.properties?.sg_subprefeitura))
-    .map((f) => {
-      const rawSg = f.properties.sg_subprefeitura;
-      const sg = SG_REWRITE[rawSg] || rawSg;
-      return {
-        type: "Feature",
-        properties: {
-          sg_subprefeitura: sg,
-          nm_subprefeitura: f.properties.nm_subprefeitura,
-        },
-        geometry: transformGeometry(f.geometry),
-      };
-    });
+    .map((f) => ({
+      type: "Feature",
+      properties: {
+        sg_subprefeitura: f.properties.sg_subprefeitura,
+        nm_subprefeitura: f.properties.nm_subprefeitura,
+      },
+      geometry: transformGeometry(f.geometry),
+    }));
   const out = { type: "FeatureCollection", features };
   fs.writeFileSync(OUT, JSON.stringify(out));
   console.log(
