@@ -208,7 +208,7 @@ function PageCard({
   title: string;
   description: string;
   icon: string;
-  href?: "/" | "/home" | "/map";
+  href?: "/" | "/home" | "/map" | "/acompanhamento" | "/aguardando-analise";
   disabled?: boolean;
 }) {
   const content = (
@@ -274,20 +274,20 @@ function HomeMenu() {
             <i className="fa-solid fa-map text-sky-600 dark:text-sky-300" aria-hidden />
             Mapa Interativo
           </Link>
-          <button
-            type="button"
-            className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-zinc-500 dark:text-zinc-500"
+          <Link
+            href="/acompanhamento"
+            className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-zinc-800 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
           >
             <i className="fa-solid fa-list-check" aria-hidden />
             Acompanhamento de execução
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-zinc-500 dark:text-zinc-500"
+          </Link>
+          <Link
+            href="/aguardando-analise"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-zinc-800 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
           >
             <i className="fa-solid fa-hourglass-half" aria-hidden />
             Aguardando Análise
-          </button>
+          </Link>
         </div>
       ) : null}
     </div>
@@ -671,13 +671,13 @@ export function HomeSearchPage() {
               title="Acompanhamento de execução"
               description="Painel operacional para leitura de avanço e execução."
               icon="fa-solid fa-list-check"
-              disabled
+              href="/acompanhamento"
             />
             <PageCard
               title="Aguardando Análise"
               description="Fila de itens que precisam de validação."
               icon="fa-solid fa-hourglass-half"
-              disabled
+              href="/aguardando-analise"
             />
           </div>
         ) : null}
