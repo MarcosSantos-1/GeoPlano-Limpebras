@@ -28,21 +28,27 @@ type ServiceKey = "GO" | "MT" | "BL" | "VJ_VL";
 
 type DateSlot = {
   value: Date;
-  label: "Anterior" | "Proxima" | "Futura";
+  label: "Anterior" | "Próxima" | "Futura";
 };
 
 const TARGET_SERVICES: ServiceKey[] = ["GO", "MT", "BL", "VJ_VL"];
 const SERVICE_TITLES: Record<ServiceKey, string> = {
-  GO: "Grandes Objetos",
-  MT: "Mobiliario Urbano",
-  BL: "Bueiros e Bocas de Lobo",
-  VJ_VL: "Varricao Manual",
+  GO: "Cata-Bagulho",
+  MT: "Mutirão",
+  BL: "Limpeza de Bueiros",
+  VJ_VL: "Varrição Manual",
 };
 const SERVICE_ACCENTS: Record<ServiceKey, string> = {
-  GO: "border-emerald-400 bg-emerald-50 text-emerald-900 dark:border-emerald-500/60 dark:bg-emerald-500/10 dark:text-emerald-100",
-  MT: "border-sky-400 bg-sky-50 text-sky-900 dark:border-sky-500/60 dark:bg-sky-500/10 dark:text-sky-100",
-  BL: "border-amber-400 bg-amber-50 text-amber-900 dark:border-amber-500/60 dark:bg-amber-500/10 dark:text-amber-100",
-  VJ_VL: "border-violet-400 bg-violet-50 text-violet-900 dark:border-violet-500/60 dark:bg-violet-500/10 dark:text-violet-100",
+  GO: "border-emerald-300 bg-white text-zinc-900 dark:border-emerald-500/50 dark:bg-zinc-900 dark:text-zinc-100",
+  MT: "border-sky-300 bg-white text-zinc-900 dark:border-sky-500/50 dark:bg-zinc-900 dark:text-zinc-100",
+  BL: "border-amber-300 bg-white text-zinc-900 dark:border-amber-500/50 dark:bg-zinc-900 dark:text-zinc-100",
+  VJ_VL: "border-violet-300 bg-white text-zinc-900 dark:border-violet-500/50 dark:bg-zinc-900 dark:text-zinc-100",
+};
+const SERVICE_ICON_ACCENTS: Record<ServiceKey, string> = {
+  GO: "text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/10",
+  MT: "text-sky-700 bg-sky-50 dark:text-sky-300 dark:bg-sky-500/10",
+  BL: "text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-500/10",
+  VJ_VL: "text-violet-700 bg-violet-50 dark:text-violet-300 dark:bg-violet-500/10",
 };
 const SERVICE_ICONS: Record<ServiceKey, string> = {
   GO: "fa-solid fa-couch",
@@ -91,7 +97,7 @@ function pickDatesAroundToday(dates: Date[], previousCount: number, futureCount:
     ...before.map((value) => ({ value, label: "Anterior" as const })),
     ...current.map((value) => ({
       value,
-      label: value.getTime() < today ? ("Anterior" as const) : ("Proxima" as const),
+      label: value.getTime() < today ? ("Anterior" as const) : ("Próxima" as const),
     })),
     ...after.map((value) => ({ value, label: "Futura" as const })),
   ];
@@ -103,6 +109,25 @@ function formatDate(date: Date): string {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+function expandFrequency(value: string): string {
+  const dayNames: Record<string, string> = {
+    D: "Domingo",
+    S: "Sábado",
+    T: "Terça",
+    Q: "Quarta",
+    X: "Quinta",
+    F: "Sexta",
+    A: "Sábado",
+  };
+  return value.replace(/\b[DSTQXFA]{2,}\b/g, (match) => {
+    if (!/^[DSTQXFA]+$/.test(match)) return match;
+    const days = Array.from(match).map((letter) => dayNames[letter]).filter(Boolean);
+    if (days.length < 2) return match;
+    if (days.length === 2) return `${days[0]} e ${days[1]}`;
+    return `${days.slice(0, -1).join(", ")} e ${days[days.length - 1]}`;
+  });
 }
 
 function pointInPolygon(point: [number, number], ring: [number, number][]): boolean {
@@ -175,28 +200,28 @@ function PageCard({
   title: string;
   description: string;
   icon: string;
-  href?: "/" | "/home";
+  href?: "/" | "/home" | "/map";
   disabled?: boolean;
 }) {
   const content = (
     <div
       className={clsx(
-        "group flex min-h-[150px] flex-col justify-between rounded-lg border bg-white p-5 text-left shadow-sm transition dark:border-slate-700 dark:bg-slate-900",
+        "group flex min-h-[150px] flex-col justify-between rounded-lg border bg-white p-5 text-left shadow-sm transition dark:border-zinc-700 dark:bg-zinc-900",
         disabled
-          ? "border-slate-200 opacity-70 dark:border-slate-700"
-          : "border-slate-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md dark:hover:border-sky-500",
+          ? "border-zinc-200 opacity-70 dark:border-zinc-700"
+          : "border-zinc-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md dark:hover:border-sky-500",
       )}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-slate-950 dark:text-white">{title}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{description}</p>
+          <h2 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{description}</p>
         </div>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sky-600 dark:border-slate-700 dark:bg-slate-800 dark:text-sky-300">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-sky-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-sky-300">
           <i className={icon} aria-hidden />
         </span>
       </div>
-      <div className="mt-5 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <div className="mt-5 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         <span>{disabled ? "Em breve" : "Abrir"}</span>
         <i className="fa-solid fa-arrow-right text-[11px]" aria-hidden />
       </div>
@@ -225,32 +250,32 @@ function HomeMenu() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex h-10 items-center gap-2 rounded-full border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+        className="flex h-10 items-center gap-2 rounded-full border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
         aria-expanded={open}
       >
         <i className="fa-solid fa-map-location-dot text-sky-600 dark:text-sky-300" aria-hidden />
         <span>Mapa</span>
-        <i className={clsx("fa-solid fa-chevron-down text-[11px] text-slate-500 transition", open && "rotate-180")} aria-hidden />
+        <i className={clsx("fa-solid fa-chevron-down text-[11px] text-zinc-500 transition", open && "rotate-180")} aria-hidden />
       </button>
       {open ? (
-        <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-950">
+        <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-lg border border-zinc-200 bg-white p-2 shadow-xl dark:border-zinc-700 dark:bg-zinc-950">
           <Link
-            href="/"
-            className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800"
+            href="/map"
+            className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
           >
             <i className="fa-solid fa-map text-sky-600 dark:text-sky-300" aria-hidden />
             Mapa Interativo
           </Link>
           <button
             type="button"
-            className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-slate-500 dark:text-slate-500"
+            className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-zinc-500 dark:text-zinc-500"
           >
             <i className="fa-solid fa-list-check" aria-hidden />
             Acompanhamento de execução
           </button>
           <button
             type="button"
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-slate-500 dark:text-slate-500"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-zinc-500 dark:text-zinc-500"
           >
             <i className="fa-solid fa-hourglass-half" aria-hidden />
             Aguardando Análise
@@ -276,7 +301,7 @@ function ScheduleCard({
   }, [isVarricao, primary, service]);
   const uniqueFrequencies = Array.from(
     new Set(features.map((feature) => feature.frequencia).filter(Boolean) as string[]),
-  );
+  ).map(expandFrequency);
 
   return (
     <section className={clsx("rounded-lg border p-4 shadow-sm", SERVICE_ACCENTS[service])}>
@@ -285,40 +310,43 @@ function ScheduleCard({
           <p className="text-xs font-bold uppercase tracking-wide opacity-70">{service.replace("_", "/")}</p>
           <h3 className="mt-1 text-base font-semibold">{SERVICE_TITLES[service]}</h3>
         </div>
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 text-lg shadow-sm dark:bg-slate-950/40">
+        <span className={clsx("flex h-9 w-9 items-center justify-center rounded-lg text-lg shadow-sm", SERVICE_ICON_ACCENTS[service])}>
           <i className={SERVICE_ICONS[service]} aria-hidden />
         </span>
       </div>
 
       {features.length === 0 ? (
-        <div className="mt-5 rounded-md bg-white/70 px-3 py-3 text-sm text-slate-600 dark:bg-slate-950/35 dark:text-slate-300">
+        <div className="mt-5 rounded-md bg-zinc-50 px-3 py-3 text-sm text-zinc-600 dark:bg-zinc-800/70 dark:text-zinc-300">
           Sem rota encontrada neste ponto.
         </div>
       ) : isVarricao ? (
         <div className="mt-5 space-y-3">
-          <div className="rounded-md bg-white/70 px-3 py-3 dark:bg-slate-950/35">
+          <div className="rounded-md bg-zinc-50 px-3 py-3 dark:bg-zinc-800/70">
             <p className="text-xs font-semibold uppercase tracking-wide opacity-60">Frequência</p>
-            <p className="mt-1 text-sm font-semibold">{uniqueFrequencies.join(" | ") || "Nao informada"}</p>
+            <p className="mt-1 text-sm font-semibold">{uniqueFrequencies.join(" | ") || "Não informada"}</p>
           </div>
-          <p className="text-xs leading-5 opacity-75">
-            {features.slice(0, 2).map((feature) => feature.logradouro || feature.name).filter(Boolean).join(" | ")}
-          </p>
         </div>
       ) : (
         <div className="mt-5 space-y-3">
           <div className="grid grid-cols-1 gap-2">
             {dates.length > 0 ? (
               dates.map((slot) => (
-                <div key={`${service}-${slot.value.getTime()}-${slot.label}`} className="flex items-center justify-between rounded-md bg-white/75 px-3 py-2 dark:bg-slate-950/35">
+                <div
+                  key={`${service}-${slot.value.getTime()}-${slot.label}`}
+                  className={clsx(
+                    "flex items-center justify-between rounded-md bg-zinc-50 px-3 py-2 dark:bg-zinc-800/70",
+                    slot.label === "Próxima" &&
+                      "border border-sky-400 ring-2 ring-sky-200/70 dark:border-sky-400 dark:ring-sky-500/20",
+                  )}
+                >
                   <span className="text-xs font-semibold uppercase tracking-wide opacity-60">{slot.label}</span>
                   <span className="text-sm font-semibold">{formatDate(slot.value)}</span>
                 </div>
               ))
             ) : (
-              <div className="rounded-md bg-white/70 px-3 py-3 text-sm dark:bg-slate-950/35">Cronograma não informado.</div>
+              <div className="rounded-md bg-zinc-50 px-3 py-3 text-sm dark:bg-zinc-800/70">Cronograma não informado.</div>
             )}
           </div>
-          <p className="text-xs leading-5 opacity-75">{primary?.logradouro || primary?.name || primary?.setor}</p>
         </div>
       )}
     </section>
@@ -510,10 +538,10 @@ export function HomeSearchPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+    <main className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-900 dark:text-zinc-100">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-        <Link href="/" className="flex items-center gap-3 text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+        <Link href="/" className="flex items-center gap-3 text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700">
             <i className="fa-solid fa-map-location-dot text-sky-600 dark:text-sky-300" aria-hidden />
           </span>
           GeoPlano
@@ -527,11 +555,11 @@ export function HomeSearchPage() {
       <section className="mx-auto flex w-full max-w-6xl flex-col px-5 pb-12 pt-6 sm:px-8 sm:pt-10">
         <div className="mx-auto w-full max-w-3xl text-center">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-700 dark:text-sky-300">Plano de Trabalho</p>
-          <h1 className="mt-4 text-3xl font-semibold tracking-normal text-slate-950 dark:text-white sm:text-5xl">
+          <h1 className="mt-4 text-3xl font-semibold tracking-normal text-zinc-950 dark:text-white sm:text-5xl">
             Consulte um endereço
           </h1>
           <form ref={formRef} onSubmit={handleSubmit} className="relative mt-8">
-            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white p-2 shadow-lg shadow-slate-200/60 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/20">
+            <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white p-2 shadow-lg shadow-zinc-200/60 dark:border-zinc-700 dark:bg-zinc-800 dark:shadow-black/20">
               <span className="ml-3 flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
                 <i className="fa-solid fa-magnifying-glass" aria-hidden />
               </span>
@@ -551,7 +579,7 @@ export function HomeSearchPage() {
                   }, 160);
                 }}
                 placeholder="Pesquise uma rua, avenida ou praça"
-                className="min-w-0 flex-1 bg-transparent py-3 text-base text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                className="min-w-0 flex-1 bg-transparent py-3 text-base text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                 autoComplete="off"
               />
               <button
@@ -564,7 +592,7 @@ export function HomeSearchPage() {
             </div>
 
             {showSuggestions && suggestions.length > 0 ? (
-              <div className="absolute left-0 top-full z-30 mt-2 max-h-80 w-full overflow-auto rounded-lg border border-slate-200 bg-white p-2 text-left shadow-xl dark:border-slate-700 dark:bg-slate-900">
+              <div className="absolute left-0 top-full z-30 mt-2 max-h-80 w-full overflow-auto rounded-lg border border-zinc-200 bg-white p-2 text-left shadow-xl dark:border-zinc-700 dark:bg-zinc-800">
                 {suggestions.map((suggestion, index) => (
                   <button
                     key={suggestion.placeId ?? `${suggestion.logradouro}-${index}`}
@@ -578,13 +606,13 @@ export function HomeSearchPage() {
                       "flex w-full items-start gap-3 rounded-md px-3 py-3 text-left transition",
                       selectedIndex === index
                         ? "bg-sky-50 text-sky-900 dark:bg-sky-500/15 dark:text-sky-100"
-                        : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800",
+                        : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700",
                     )}
                   >
                     <i className="fa-solid fa-location-dot mt-0.5 text-sky-600 dark:text-sky-300" aria-hidden />
                     <span>
                       <span className="block text-sm font-semibold">{suggestion.logradouro}</span>
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                      <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
                         {suggestion.source === "google" ? "Google Places" : suggestion.subprefeitura || suggestion.setor || "Endereco"}
                       </span>
                     </span>
@@ -601,7 +629,7 @@ export function HomeSearchPage() {
               title="Mapa Interativo"
               description="Camadas, busca geográfica e detalhes do plano de trabalho."
               icon="fa-solid fa-map"
-              href="/"
+              href="/map"
             />
             <PageCard
               title="Acompanhamento de execução"
@@ -622,8 +650,8 @@ export function HomeSearchPage() {
           <div className="mt-10">
             <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Resultado para</p>
-                <h2 className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">{describeAddress({
+                <p className="text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Resultado para</p>
+                <h2 className="mt-1 text-xl font-semibold text-zinc-950 dark:text-white">{describeAddress({
                   logradouro: selectedAddress.label,
                   name: selectedAddress.label,
                   setor: "",
@@ -631,7 +659,7 @@ export function HomeSearchPage() {
                 })}</h2>
               </div>
               {loadingServices ? (
-                <span className="inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
                   Carregando cronogramas
                 </span>
@@ -644,7 +672,7 @@ export function HomeSearchPage() {
             </div>
           </div>
         ) : hasQuery ? (
-          <div className="mx-auto mt-10 max-w-2xl rounded-lg border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
+          <div className="mx-auto mt-10 max-w-2xl rounded-lg border border-dashed border-zinc-300 bg-white/70 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400">
             Escolha uma sugestão para ver os cronogramas.
           </div>
         ) : null}
