@@ -1,6 +1,7 @@
 import { MapView } from "@/components/MapView";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { loadFeatureData } from "@/lib/data";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,10 +14,10 @@ export default async function HomePage() {
       <header className="mx-auto w-full max-w-5xl space-y-2 bg-white px-6 py-8 dark:bg-zinc-900">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button
-              type="button"
+            <Link
+              href="/home"
               className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              aria-label="Voltar"
+              aria-label="Abrir inicio"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -28,10 +29,11 @@ export default async function HomePage() {
                 strokeLinejoin="round"
                 className="h-5 w-5"
               >
-                <path d="m12 19-7-7 7-7" />
-                <path d="M19 12H5" />
+                <path d="M3 10.5 12 3l9 7.5" />
+                <path d="M5 10v10h14V10" />
+                <path d="M9 20v-6h6v6" />
               </svg>
-            </button>
+            </Link>
             <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary dark:text-blue-400">
               <i
                 className="fa-solid fa-map text-[15px] leading-none opacity-90"
