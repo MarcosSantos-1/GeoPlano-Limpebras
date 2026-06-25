@@ -549,7 +549,7 @@ export function HomeSearchPage() {
   };
 
   return (
-    <main className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-900 dark:text-zinc-100">
+    <main className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-900 dark:text-zinc-100 flex flex-col">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         {/* Desktop Logo */}
         <Link href="/" className="hidden sm:flex items-center gap-3 text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
@@ -574,8 +574,15 @@ export function HomeSearchPage() {
         </div>
       </header>
 
-      <section className="mx-auto flex w-full max-w-6xl flex-col px-5 pb-12 pt-6 sm:px-8 sm:pt-10">
-        <div className="mx-auto w-full max-w-3xl text-center">
+      <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 pb-12 pt-6 sm:px-8 sm:pt-10">
+        <div
+          className={clsx(
+            "mx-auto w-full max-w-3xl text-center",
+            selectedAddress
+              ? "pt-0"
+              : "flex flex-1 flex-col justify-center sm:block sm:flex-none sm:pt-10"
+          )}
+        >
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-700 dark:text-sky-300">Plano de Trabalho</p>
           <h1 className="mt-4 text-3xl font-semibold tracking-normal text-zinc-950 dark:text-white sm:text-5xl">
             Consulte um endereço
