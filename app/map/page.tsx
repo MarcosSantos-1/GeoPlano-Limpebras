@@ -10,7 +10,7 @@ export default async function MapPage() {
   const initialData = await loadFeatureData();
   return (
     <main className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white dark:bg-zinc-900">
-      <header className="mx-auto w-full max-w-5xl space-y-2 bg-white px-6 py-8 dark:bg-zinc-900">
+      <header className="hidden sm:block mx-auto w-full max-w-5xl space-y-2 bg-white px-6 py-8 dark:bg-zinc-900">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link

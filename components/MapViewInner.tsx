@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   useCallback,
   useEffect,
@@ -335,11 +337,23 @@ function SearchBar({
   L,
   searchMarkerIcon,
   onSelectLocation,
+  overlayToggles,
+  handleOverlayToggle,
+  orderedServiceKeys,
+  loadedByService,
+  data,
+  boundaryData,
 }: {
   mapRef: React.RefObject<Leaflet.Map | null>;
   L: typeof Leaflet | undefined;
   searchMarkerIcon: Leaflet.DivIcon | null;
   onSelectLocation: (location: SearchLocation) => void;
+  overlayToggles: Record<string, boolean>;
+  handleOverlayToggle: (key: string, checked: boolean) => void;
+  orderedServiceKeys: string[];
+  loadedByService: Record<string, FeatureRecord[]>;
+  data: FeatureCollection | null;
+  boundaryData: any;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
@@ -347,6 +361,19 @@ function SearchBar({
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [hideSearchGlyph, setHideSearchGlyph] = useState(false);
+  const [mobileLayersOpen, setMobileLayersOpen] = useState(false);
+  const mobileLayersRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!mobileLayersOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (mobileLayersRef.current?.contains(e.target as Node)) return;
+      setMobileLayersOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [mobileLayersOpen]);
+
   const searchMarkerRef = useRef<Leaflet.Marker | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -548,13 +575,13 @@ function SearchBar({
   };
 
   return (
-    <div className="absolute left-6 top-6 z-[1000] w-[500px]" style={{ marginLeft: "60px" }}>
+    <div className="absolute left-6 top-6 z-[1000] w-[calc(100vw-120px)] sm:w-[500px]" style={{ marginLeft: "60px" }}>
       <form ref={formRef} onSubmit={handleSubmit} className="relative">
         <div className="flex items-center gap-2 rounded-lg border-2 border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-800">
           <div className="relative min-w-0 flex flex-1 items-center">
             {!hideSearchGlyph && (
               <span
-                className="pointer-events-none absolute left-3 z-[1] flex h-9 w-9 items-center justify-center rounded-lg bg-primary/12 text-primary ring-1 ring-primary/25 dark:bg-primary/20 dark:ring-primary/35"
+                className="pointer-events-none absolute left-3 z-[1] hidden sm:flex h-9 w-9 items-center justify-center rounded-lg bg-primary/12 text-primary ring-1 ring-primary/25 dark:bg-primary/20 dark:ring-primary/35"
                 aria-hidden
               >
                 <i className="fa-solid fa-magnifying-glass text-base" />
@@ -583,7 +610,7 @@ function SearchBar({
               placeholder="Pesquisar endereço (ex: av ede 156)..."
               className={clsx(
                 "min-w-0 flex-1 rounded-md border-none bg-transparent py-3 text-sm text-zinc-700 focus:outline-none focus:ring-0 dark:text-zinc-200 dark:placeholder:text-zinc-400",
-                hideSearchGlyph ? "pl-3 pr-2" : "pl-14 pr-2",
+                hideSearchGlyph ? "pl-3 pr-2" : "pl-3 sm:pl-14 pr-2",
               )}
               autoComplete="off"
             />
@@ -591,9 +618,16 @@ function SearchBar({
           <button
             type="submit"
             disabled={isSearching || !searchQuery.trim()}
-            className="mr-2 shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white uppercase tracking-wide shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary p-0 text-sm font-semibold text-white uppercase tracking-wide shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 sm:h-auto sm:w-auto sm:px-4 sm:py-2"
           >
-            {isSearching ? "..." : "Buscar"}
+            {isSearching ? (
+              "..."
+            ) : (
+              <>
+                <span className="hidden sm:inline">Buscar</span>
+                <i className="fa-solid fa-magnifying-glass sm:hidden" aria-hidden />
+              </>
+            )}
           </button>
         </div>
 
@@ -641,6 +675,105 @@ function SearchBar({
           </div>
         )}
       </form>
+
+      {/* Mobile Controls Row: hidden sm:flex */}
+      <div className="mt-2 flex sm:hidden items-center gap-1.5 flex-wrap pointer-events-auto">
+        {/* Back to Home Button */}
+        <Link
+          href="/"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white shadow-md text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-zinc-900 dark:text-slate-300"
+          aria-label="Voltar para o início"
+        >
+          <i className="fa-solid fa-arrow-left text-xs" />
+        </Link>
+
+        {/* Camadas Menu Button */}
+        <div ref={mobileLayersRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setMobileLayersOpen((o) => !o)}
+            className={clsx(
+              "flex h-8 w-8 items-center justify-center rounded-full border shadow-md transition bg-white/95 dark:bg-slate-900/95 dark:text-slate-100",
+              mobileLayersOpen
+                ? "border-sky-500 ring-2 ring-sky-300 dark:border-sky-500"
+                : "border-zinc-300 dark:border-zinc-700"
+            )}
+          >
+            <i className="fa-brands fa-buffer text-sm text-sky-600 dark:text-sky-400" />
+          </button>
+          {mobileLayersOpen && (
+            <div className="absolute left-0 top-full z-[2100] mt-2 w-64 max-h-[60vh] overflow-y-auto rounded-lg border border-zinc-200 bg-white/95 p-3 text-slate-900 shadow-xl backdrop-blur-md dark:border-zinc-700 dark:bg-zinc-950/95 dark:text-slate-100">
+              <div className="mb-2 border-b border-slate-200 pb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-600/50 dark:text-slate-400">
+                Camadas
+              </div>
+              <ul className="space-y-1">
+                {orderedServiceKeys.map((serviceKey) => {
+                  const features = loadedByService[serviceKey] ?? data?.services[serviceKey] ?? [];
+                  const displayName =
+                    data?.serviceLabels?.[serviceKey] ??
+                    features[0]?.serviceDisplay ??
+                    features[0]?.service ??
+                    serviceKey;
+                  return (
+                    <li key={serviceKey}>
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm text-slate-800 transition hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700/50">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 shrink-0 rounded border-slate-400 accent-sky-600 dark:border-slate-500 dark:accent-sky-500"
+                          checked={!!overlayToggles[serviceKey]}
+                          onChange={(e) => handleOverlayToggle(serviceKey, e.target.checked)}
+                        />
+                        <OverlayRowLeading serviceKey={serviceKey} sample={features[0]} />
+                        <span className="min-w-0 flex-1 leading-snug text-xs">{displayName}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+              {boundaryData && (
+                <>
+                  <div className="my-2 border-t border-slate-200 dark:border-slate-600/50" />
+                  <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm text-slate-800 transition hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700/50">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 shrink-0 rounded border-slate-400 accent-sky-600 dark:border-slate-500 dark:accent-sky-500"
+                      checked={!!overlayToggles._boundary}
+                      onChange={(e) => handleOverlayToggle("_boundary", e.target.checked)}
+                    />
+                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-200 dark:border-slate-500/40 dark:bg-slate-800/80">
+                      <i className="fa-solid fa-city text-[13px] text-slate-600 dark:text-slate-300" aria-hidden />
+                    </span>
+                    <span className="leading-snug text-xs">Limite São Paulo</span>
+                  </label>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Subprefeitura Bubbles */}
+        {SUBPREFS_LOTE.map((def) => {
+          const active = !!overlayToggles[def.toggleKey];
+          return (
+            <button
+              key={def.toggleKey}
+              type="button"
+              onClick={() => handleOverlayToggle(def.toggleKey, !active)}
+              className={clsx(
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold border shadow-md transition-all",
+                def.sg === "ST" ? "text-slate-900" : "text-white",
+                active ? "scale-105 ring-2 ring-sky-400 dark:ring-sky-500" : "opacity-50 border-zinc-300 dark:border-zinc-700"
+              )}
+              style={{
+                backgroundColor: def.color,
+                borderColor: def.color,
+              }}
+            >
+              {def.sg}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1275,6 +1408,12 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
           L={L}
           searchMarkerIcon={searchMarkerIcon}
           onSelectLocation={setSelectedSearchLocation}
+          overlayToggles={overlayToggles}
+          handleOverlayToggle={handleOverlayToggle}
+          orderedServiceKeys={orderedServiceKeys}
+          loadedByService={loadedByService}
+          data={data}
+          boundaryData={boundaryData}
         />
       )}
 
@@ -1352,7 +1491,7 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
 
         <div
           ref={layersPanelRef}
-          className="pointer-events-auto absolute right-4 top-4 z-[2000] flex flex-col items-end gap-0"
+          className="pointer-events-auto absolute right-4 top-4 z-[2000] hidden sm:flex flex-col items-end gap-0"
         >
           <button
             type="button"
@@ -1475,7 +1614,7 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
 
         <div
           ref={basemapPanelRef}
-          className="pointer-events-auto absolute bottom-4 right-4 z-[2000] flex flex-col items-end"
+          className="pointer-events-auto absolute bottom-4 right-4 z-[2000] hidden sm:flex flex-col items-end"
         >
           {basemapMenuOpen ? (
             <div
@@ -1546,7 +1685,7 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
           aria-pressed={mapFullscreen}
           aria-label={mapFullscreen ? "Sair da tela cheia" : "Mapa em tela cheia"}
           title={mapFullscreen ? "Sair da tela cheia" : "Tela cheia"}
-          className="pointer-events-auto absolute bottom-4 left-4 z-[2000] flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/90 bg-white/95 text-slate-800 shadow-lg backdrop-blur-md transition hover:bg-slate-50 dark:border-slate-600/50 dark:bg-slate-950/90 dark:text-slate-100 dark:hover:bg-slate-800/95"
+          className="pointer-events-auto absolute bottom-4 left-4 z-[2000] hidden sm:flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300/90 bg-white/95 text-slate-800 shadow-lg backdrop-blur-md transition hover:bg-slate-50 dark:border-slate-600/50 dark:bg-slate-950/90 dark:text-slate-100 dark:hover:bg-slate-800/95"
         >
           <i
             className={clsx(

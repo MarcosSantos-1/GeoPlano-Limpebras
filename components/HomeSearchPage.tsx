@@ -103,10 +103,18 @@ function pickDatesAroundToday(dates: Date[], previousCount: number, futureCount:
   ];
 }
 
-function formatDate(date: Date): string {
+function formatDateShort(date: Date): string {
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateLong(date: Date): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "long",
     year: "numeric",
   }).format(date);
 }
@@ -340,7 +348,10 @@ function ScheduleCard({
                   )}
                 >
                   <span className="text-xs font-semibold uppercase tracking-wide opacity-60">{slot.label}</span>
-                  <span className="text-sm font-semibold">{formatDate(slot.value)}</span>
+                  <span className="text-sm font-semibold">
+                    <span className="sm:hidden">{formatDateLong(slot.value)}</span>
+                    <span className="hidden sm:inline">{formatDateShort(slot.value)}</span>
+                  </span>
                 </div>
               ))
             ) : (
@@ -540,15 +551,26 @@ export function HomeSearchPage() {
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-900 dark:text-zinc-100">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-        <Link href="/" className="flex items-center gap-3 text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
+        {/* Desktop Logo */}
+        <Link href="/" className="hidden sm:flex items-center gap-3 text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700">
             <i className="fa-solid fa-map-location-dot text-sky-600 dark:text-sky-300" aria-hidden />
           </span>
           GeoPlano
         </Link>
+        {/* Mobile Map Shortcut */}
+        <Link
+          href="/map"
+          className="flex sm:hidden items-center gap-2 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+        >
+          <i className="fa-solid fa-map text-sky-600 dark:text-sky-300" aria-hidden />
+          <span>Mapa</span>
+        </Link>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <HomeMenu />
+          <div className="hidden sm:block">
+            <HomeMenu />
+          </div>
         </div>
       </header>
 
@@ -560,7 +582,7 @@ export function HomeSearchPage() {
           </h1>
           <form ref={formRef} onSubmit={handleSubmit} className="relative mt-8">
             <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white p-2 shadow-lg shadow-zinc-200/60 dark:border-zinc-700 dark:bg-zinc-800 dark:shadow-black/20">
-              <span className="ml-3 flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+              <span className="ml-3 hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
                 <i className="fa-solid fa-magnifying-glass" aria-hidden />
               </span>
               <input
@@ -579,15 +601,22 @@ export function HomeSearchPage() {
                   }, 160);
                 }}
                 placeholder="Pesquise uma rua, avenida ou praça"
-                className="min-w-0 flex-1 bg-transparent py-3 text-base text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                className="min-w-0 flex-1 bg-transparent py-3 pl-3 sm:pl-0 text-base text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                 autoComplete="off"
               />
               <button
                 type="submit"
                 disabled={isSearching || !query.trim()}
-                className="mr-1 rounded-full bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-600 p-0 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50 sm:h-auto sm:w-auto sm:px-5 sm:py-3"
               >
-                {isSearching ? "..." : "Buscar"}
+                {isSearching ? (
+                  "..."
+                ) : (
+                  <>
+                    <span className="hidden sm:inline">Buscar</span>
+                    <i className="fa-solid fa-magnifying-glass sm:hidden" aria-hidden />
+                  </>
+                )}
               </button>
             </div>
 
@@ -624,7 +653,7 @@ export function HomeSearchPage() {
         </div>
 
         {!hasQuery && !selectedAddress ? (
-          <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="hidden mt-12 gap-4 md:grid md:grid-cols-3">
             <PageCard
               title="Mapa Interativo"
               description="Camadas, busca geográfica e detalhes do plano de trabalho."
