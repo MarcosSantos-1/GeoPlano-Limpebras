@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import * as XLSX from "xlsx";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { AppHeader } from "@/components/AppHeader";
 
 type FlipMode = "execution" | "analysis";
 
@@ -47,6 +46,7 @@ const SERVICE_LABELS: Record<string, string> = {
   "Coleta manual de resíduos de varrição e de feiras-livres com compactador": "Coleta de Varrição",
   "Varrição manual de vias e logradouros públicos": "Varrição Manual",
   "Remoção de animais mortos de proprietários não identificados em vias e logradouros públicos": "Animal Morto",
+  "Coleta e transporte de entulho e grandes objetos depositados irregularmente nas vias, logradouros e áreas públicas": "Coleta e transporte de entulho e G.O.",
 };
 
 const COLS = {
@@ -180,27 +180,25 @@ function groupBy<T>(items: T[], getKey: (item: T) => string): Array<[string, T[]
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b, "pt-BR"));
 }
 
-function FlipNav() {
-  return (
-    <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-      <Link href="/" className="flex items-center gap-3 text-sm font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
-        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700">
-          <i className="fa-solid fa-table-list text-sky-600 dark:text-sky-300" aria-hidden />
-        </span>
-        GeoPlano
-      </Link>
-      <div className="flex items-center gap-2">
-        <Link
-          href="/map"
-          className="hidden items-center gap-2 rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:flex"
-        >
-          <i className="fa-solid fa-map" aria-hidden />
-          Mapa
-        </Link>
-        <ThemeToggle />
-      </div>
-    </header>
-  );
+function dateKeyToTime(value: string): number {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  const [, day, month, year] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day)).getTime();
+}
+
+function dateKeyToInput(value: string): string {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return "";
+  const [, day, month, year] = match;
+  return `${year}-${month}-${day}`;
+}
+
+function inputToDateKey(value: string): string {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
 }
 
 function Dropzone({
@@ -305,29 +303,27 @@ function SummaryCard({ label, value, icon }: { label: string; value: string | nu
 
 function RecordsTable({ records, compact = false }: { records: FlipSacRecord[]; compact?: boolean }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-      <table className="min-w-full text-left text-sm">
+    <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+      <table className="w-full table-fixed text-left text-sm">
         <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
           <tr>
-            <th className="px-3 py-3">Nº Chamado</th>
-            <th className="px-3 py-3">Regional</th>
-            <th className="px-3 py-3">Serviço</th>
+            <th className="w-[18%] px-3 py-3">Nº Chamado</th>
+            <th className="w-[22%] px-3 py-3">Serviço</th>
             <th className="px-3 py-3">Endereço</th>
-            {!compact ? <th className="px-3 py-3">Data Sincronização</th> : null}
-            <th className="px-3 py-3">Agendamento</th>
-            {compact ? <th className="px-3 py-3">Motivo</th> : null}
+            {!compact ? <th className="w-[18%] px-3 py-3">Data Sincronização</th> : null}
+            <th className="w-[16%] px-3 py-3">Agendamento</th>
+            {compact ? <th className="w-[28%] px-3 py-3">Motivo</th> : null}
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {records.map((record) => (
             <tr key={`${record.rowNumber}-${record.chamado}`} className="text-zinc-700 dark:text-zinc-200">
-              <td className="whitespace-nowrap px-3 py-3 font-semibold text-zinc-950 dark:text-white">{record.chamado}</td>
-              <td className="whitespace-nowrap px-3 py-3">{record.regional}</td>
-              <td className="whitespace-nowrap px-3 py-3">{record.service}</td>
-              <td className="min-w-[320px] px-3 py-3">{record.address}</td>
-              {!compact ? <td className="whitespace-nowrap px-3 py-3">{record.syncDate}</td> : null}
-              <td className="whitespace-nowrap px-3 py-3">{record.scheduleDate || "—"}</td>
-              {compact ? <td className="min-w-[260px] px-3 py-3 text-amber-700 dark:text-amber-300">{record.issues.join(" | ")}</td> : null}
+              <td className="break-words px-3 py-3 font-semibold text-zinc-950 dark:text-white">{record.chamado}</td>
+              <td className="break-words px-3 py-3">{record.service}</td>
+              <td className="break-words px-3 py-3">{record.address}</td>
+              {!compact ? <td className="break-words px-3 py-3">{record.syncDate}</td> : null}
+              <td className="break-words px-3 py-3">{record.scheduleDate || "—"}</td>
+              {compact ? <td className="break-words px-3 py-3 text-amber-700 dark:text-amber-300">{record.issues.join(" | ")}</td> : null}
             </tr>
           ))}
         </tbody>
@@ -339,6 +335,20 @@ function RecordsTable({ records, compact = false }: { records: FlipSacRecord[]; 
 function ExecutionContent({ result }: { result: ParseResult }) {
   const byRegional = useMemo(() => groupBy(result.valid, (record) => record.regional), [result.valid]);
   const byDate = useMemo(() => groupBy(result.valid, (record) => record.scheduleDate || "Sem data"), [result.valid]);
+  const scheduleDates = useMemo(
+    () => Array.from(new Set(result.valid.map((record) => record.scheduleDate).filter(Boolean))).sort((a, b) => dateKeyToTime(a) - dateKeyToTime(b)),
+    [result.valid],
+  );
+  const [selectedDate, setSelectedDate] = useState("");
+  const activeDate = selectedDate || scheduleDates[0] || "";
+  const dateFilteredRecords = useMemo(
+    () => result.valid.filter((record) => !activeDate || record.scheduleDate === activeDate),
+    [activeDate, result.valid],
+  );
+  const filteredByRegional = useMemo(
+    () => groupBy(dateFilteredRecords, (record) => record.regional),
+    [dateFilteredRecords],
+  );
   return (
     <div className="mx-auto mt-8 w-full max-w-6xl space-y-8 px-5 pb-12 sm:px-8">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
@@ -396,8 +406,39 @@ function ExecutionContent({ result }: { result: ParseResult }) {
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-base font-semibold text-zinc-950 dark:text-white">Tabela limpa</h3>
-        <RecordsTable records={result.valid} />
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+          <div>
+            <h3 className="text-base font-semibold text-zinc-950 dark:text-white">Tabela limpa por regional</h3>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Filtre por data de agendamento para separar as orientações por sub/regional.
+            </p>
+          </div>
+          <label className="text-left text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+            Data
+            <input
+              type="date"
+              value={dateKeyToInput(activeDate)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSelectedDate(inputToDateKey(value));
+              }}
+              className="mt-1 block rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:ring-sky-500/20"
+            />
+          </label>
+        </div>
+        <div className="space-y-5">
+          {filteredByRegional.map(([regional, records]) => (
+            <section key={regional} className="space-y-2">
+              <div className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
+                <h4 className="font-semibold text-zinc-950 dark:text-white">{regional}</h4>
+                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                  {records.length} SACs
+                </span>
+              </div>
+              <RecordsTable records={records} />
+            </section>
+          ))}
+        </div>
       </section>
     </div>
   );
@@ -453,7 +494,7 @@ export function FlipSacPage({ mode }: { mode: FlipMode }) {
 
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-900 dark:text-zinc-100">
-      <FlipNav />
+      <AppHeader />
       <section className="mx-auto w-full max-w-6xl px-5 pb-6 pt-6 text-center sm:px-8 sm:pt-10">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-700 dark:text-sky-300">FLIP</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-normal text-zinc-950 dark:text-white sm:text-5xl">
