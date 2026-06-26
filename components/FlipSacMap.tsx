@@ -14,7 +14,7 @@ export type FlipSacMapPoint = {
 const FlipSacMapClient = dynamic(() => import("./FlipSacMapInner"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[420px] items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
+    <div className="flex h-[560px] items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
       Carregando mapa dos SACs...
     </div>
   ),
