@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { AppHeader } from "@/components/AppHeader";
 import { minDistancePointToPolylineMeters, OVERLAPPING_LINE_PICK_METERS } from "@/lib/polylineDistance";
 import { parseFeaturesJson } from "@/lib/parseFeaturesJson";
+import { nextScheduleDateForFeature } from "@/lib/serviceSchedule";
 import type { FeatureRecord } from "@/lib/types";
 
 type SearchSuggestion = {
@@ -248,16 +249,25 @@ function ScheduleCard({
 }) {
   const primary = features[0];
   const isVarricao = service === "VJ_VL";
-  const dates = useMemo(() => {
-    if (!primary || isVarricao) return [];
-    return pickDatesAroundToday(parseScheduleDates(primary.cronograma), service === "GO" ? 2 : 1, service === "GO" ? 2 : 1);
-  }, [isVarricao, primary, service]);
+  const nextSchedule = primary ? nextScheduleDateForFeature(primary, service) : null;
+  const scheduleDates = nextSchedule?.dates ?? [];
   const uniqueFrequencies = Array.from(
     new Set(features.map((feature) => feature.frequencia).filter(Boolean) as string[]),
   ).map(expandFrequency);
+  const uniqueSectors = Array.from(new Set(features.map((feature) => feature.setor).filter(Boolean)));
+  const uniqueDays = Array.from(new Set(features.map((feature) => feature.cronograma).filter(Boolean) as string[]));
 
   return (
     <section className={clsx("rounded-lg border p-4 shadow-sm", SERVICE_ACCENTS[service])}>
+      {uniqueSectors.length > 0 ? (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {uniqueSectors.slice(0, 3).map((setor) => (
+            <span key={setor} className="rounded-md bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 ring-1 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/30">
+              {setor}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide opacity-70">{service.replace("_", "/")}</p>
@@ -274,29 +284,38 @@ function ScheduleCard({
         </div>
       ) : isVarricao ? (
         <div className="mt-5 space-y-3">
+          {scheduleDates.map((date, index) => (
+            <div
+              key={`${service}-${date}-${index}`}
+              className="flex items-center justify-between rounded-md border border-sky-400 bg-zinc-50 px-3 py-2 ring-2 ring-sky-200/70 dark:bg-zinc-800/70 dark:ring-sky-500/20"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wide opacity-60">{index === 0 ? "Próxima" : "Depois"}</span>
+              <span className="text-sm font-semibold">{date}</span>
+            </div>
+          ))}
           <div className="rounded-md bg-zinc-50 px-3 py-3 dark:bg-zinc-800/70">
             <p className="text-xs font-semibold uppercase tracking-wide opacity-60">Frequência</p>
             <p className="mt-1 text-sm font-semibold">{uniqueFrequencies.join(" | ") || "Não informada"}</p>
+          </div>
+          <div className="rounded-md bg-zinc-50 px-3 py-3 dark:bg-zinc-800/70">
+            <p className="text-xs font-semibold uppercase tracking-wide opacity-60">Dias</p>
+            <p className="mt-1 text-sm font-semibold">{uniqueDays.join(" | ") || "Não informado"}</p>
           </div>
         </div>
       ) : (
         <div className="mt-5 space-y-3">
           <div className="grid grid-cols-1 gap-2">
-            {dates.length > 0 ? (
-              dates.map((slot) => (
+            {scheduleDates.length > 0 ? (
+              scheduleDates.map((date, index) => (
                 <div
-                  key={`${service}-${slot.value.getTime()}-${slot.label}`}
+                  key={`${service}-${date}-${index}`}
                   className={clsx(
                     "flex items-center justify-between rounded-md bg-zinc-50 px-3 py-2 dark:bg-zinc-800/70",
-                    slot.label === "Próxima" &&
-                      "border border-sky-400 ring-2 ring-sky-200/70 dark:border-sky-400 dark:ring-sky-500/20",
+                    index === 0 && "border border-sky-400 ring-2 ring-sky-200/70 dark:border-sky-400 dark:ring-sky-500/20",
                   )}
                 >
-                  <span className="text-xs font-semibold uppercase tracking-wide opacity-60">{slot.label}</span>
-                  <span className="text-sm font-semibold">
-                    <span className="sm:hidden">{formatDateLong(slot.value)}</span>
-                    <span className="hidden sm:inline">{formatDateShort(slot.value)}</span>
-                  </span>
+                  <span className="text-xs font-semibold uppercase tracking-wide opacity-60">{index === 0 ? "Próxima" : "Depois"}</span>
+                  <span className="text-sm font-semibold">{date}</span>
                 </div>
               ))
             ) : (
