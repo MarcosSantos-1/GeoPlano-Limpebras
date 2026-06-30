@@ -42,12 +42,6 @@ export default function RootLayout({
         />
         <link
           rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          integrity="sha256-sA+e2atLYB2gMl30n8y9LgbNf048IIBmQUJyAA8R+yo="
-          crossOrigin=""
-        />
-        <link
-          rel="stylesheet"
           href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"
         />
         <link

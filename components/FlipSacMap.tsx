@@ -7,6 +7,7 @@ export type FlipSacMapPoint = {
   service: string;
   address: string;
   regional: string;
+  color?: string;
   lat: number;
   lon: number;
 };

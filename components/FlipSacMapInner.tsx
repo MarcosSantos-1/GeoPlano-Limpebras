@@ -2,24 +2,48 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import type { LatLngExpression } from "leaflet";
 import L from "leaflet";
 import type { FlipSacMapPoint } from "@/components/FlipSacMap";
 
 const DEFAULT_CENTER: LatLngExpression = [-23.535, -46.575];
+const DEFAULT_POINT_COLOR = "#0ea5e9";
+
+function ResizeMap({ pointsCount }: { pointsCount: number }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const resize = () => map.invalidateSize({ animate: false });
+    const frame = window.requestAnimationFrame(resize);
+    const timer = window.setTimeout(resize, 260);
+    window.addEventListener("resize", resize);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+      window.removeEventListener("resize", resize);
+    };
+  }, [map, pointsCount]);
+
+  return null;
+}
 
 function FitPoints({ points }: { points: FlipSacMapPoint[] }) {
   const map = useMap();
 
   useEffect(() => {
-    if (points.length === 0) return;
-    const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lon]));
-    if (!bounds.isValid()) return;
-    map.fitBounds(bounds, {
-      animate: false,
-      maxZoom: 16,
-      padding: [36, 36],
-    });
+    const timer = window.setTimeout(() => {
+      map.invalidateSize({ animate: false });
+      if (points.length === 0) return;
+      const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lon]));
+      if (!bounds.isValid()) return;
+      map.fitBounds(bounds, {
+        animate: false,
+        maxZoom: 16,
+        padding: [48, 48],
+      });
+    }, 80);
+    return () => window.clearTimeout(timer);
   }, [map, points]);
 
   return null;
@@ -53,7 +77,7 @@ export default function FlipSacMapInner({ points }: { points: FlipSacMapPoint[] 
   }, []);
 
   return (
-    <div className="relative h-[560px] overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950">
+    <div className="relative h-[640px] overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950">
       {points.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center px-6 text-center text-zinc-500 dark:text-zinc-400">
           <i className="fa-solid fa-location-dot text-3xl text-zinc-300 dark:text-zinc-600" aria-hidden />
@@ -87,49 +111,52 @@ export default function FlipSacMapInner({ points }: { points: FlipSacMapPoint[] 
               {filteredPoints.length} de {points.length} pontos
             </div>
           </div>
-          <MapContainer center={center} zoom={13} className="h-full w-full" scrollWheelZoom>
-          <TileLayer
-            key={isDark ? "carto-dark" : "carto-light"}
-            attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
-            url={
-              isDark
-                ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-            }
-          />
-          <FitPoints points={filteredPoints} />
-          {filteredPoints.map((point) => (
-            <CircleMarker
-              key={point.id}
-              center={[point.lat, point.lon]}
-              radius={7}
-              pathOptions={{
-                color: "#0369a1",
-                fillColor: "#0ea5e9",
-                fillOpacity: 0.85,
-                opacity: 0.95,
-                weight: 2,
-              }}
-            >
-              <Popup>
-                <div className="min-w-[220px] space-y-2 text-sm">
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">SAC</p>
-                    <p className="font-semibold text-slate-950">{point.id}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Serviço</p>
-                    <p className="text-slate-800">{point.service}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Endereço</p>
-                    <p className="text-slate-800">{point.address}</p>
-                  </div>
-                  <p className="text-xs font-medium text-slate-500">{point.regional}</p>
-                </div>
-              </Popup>
-            </CircleMarker>
-          ))}
+          <MapContainer center={center} zoom={13} className="h-full w-full" scrollWheelZoom preferCanvas>
+            <TileLayer
+              key={isDark ? "osm-standard-dark-key" : "osm-standard-light-key"}
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maxZoom={19}
+              updateWhenIdle={false}
+              keepBuffer={4}
+            />
+            <ResizeMap pointsCount={filteredPoints.length} />
+            <FitPoints points={filteredPoints} />
+            {filteredPoints.map((point) => {
+              const color = point.color ?? DEFAULT_POINT_COLOR;
+              return (
+                <CircleMarker
+                  key={point.id}
+                  center={[point.lat, point.lon]}
+                  radius={8}
+                  pathOptions={{
+                    color,
+                    fillColor: color,
+                    fillOpacity: 0.9,
+                    opacity: 1,
+                    weight: 3,
+                  }}
+                >
+                  <Popup>
+                    <div className="min-w-[220px] space-y-2 text-sm">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">SAC</p>
+                        <p className="font-semibold text-slate-950">{point.id}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Serviço</p>
+                        <p className="text-slate-800">{point.service}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Endereço</p>
+                        <p className="text-slate-800">{point.address}</p>
+                      </div>
+                      <p className="text-xs font-medium text-slate-500">{point.regional}</p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            })}
           </MapContainer>
         </>
       )}
