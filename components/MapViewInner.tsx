@@ -261,20 +261,27 @@ type SearchLocation = {
 
 function collectFeatureLatLngs(features: FeatureRecord[]): [number, number][] {
   const points: [number, number][] = [];
-  for (const feature of features) {
-    const geometry = feature.geometry ?? "polygon";
-    if (geometry === "multiline") {
-      for (const ring of feature.coords as [number, number][][]) {
-        for (const point of ring) {
-          if (Array.isArray(point) && point.length >= 2) points.push([point[0], point[1]]);
-        }
+
+  const pushLatLngs = (value: unknown) => {
+    if (!Array.isArray(value) || value.length === 0) return;
+    if (typeof value[0] === "number" && typeof value[1] === "number") {
+      if (Number.isFinite(value[0]) && Number.isFinite(value[1])) {
+        points.push([value[0], value[1]]);
       }
-      continue;
+      return;
     }
-    for (const point of feature.coords as [number, number][]) {
-      if (Array.isArray(point) && point.length >= 2 && typeof point[0] === "number") {
-        points.push([point[0], point[1]]);
-      }
+    for (const item of value) pushLatLngs(item);
+  };
+
+  for (const feature of features) {
+    pushLatLngs(feature.coords);
+    if (
+      Array.isArray(feature.centroid) &&
+      feature.centroid.length >= 2 &&
+      Number.isFinite(feature.centroid[0]) &&
+      Number.isFinite(feature.centroid[1])
+    ) {
+      points.push([feature.centroid[0], feature.centroid[1]]);
     }
   }
   return points;
@@ -286,15 +293,38 @@ function fitMapToFeatures(
   features: FeatureRecord[],
   fallbackCentroids: [number, number][] = [],
 ) {
-  const points = collectFeatureLatLngs(features);
-  const coords = points.length > 0 ? points : fallbackCentroids;
-  if (coords.length === 0) return;
-  if (coords.length === 1) {
-    map.setView(coords[0], 16, { animate: true });
-    return;
+  try {
+    const points = collectFeatureLatLngs(features);
+    const centroids = features
+      .map((feature) => feature.centroid)
+      .filter(
+        (c): c is [number, number] =>
+          Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]),
+      );
+    const coords =
+      points.length > 0
+        ? points
+        : fallbackCentroids.length > 0
+          ? fallbackCentroids.filter(
+              (c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]),
+            )
+          : centroids;
+
+    if (coords.length === 0) return;
+    if (coords.length === 1) {
+      map.setView(coords[0], 16, { animate: true });
+      return;
+    }
+
+    const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng] as [number, number]));
+    if (!bounds.isValid()) {
+      if (centroids[0]) map.setView(centroids[0], 15, { animate: true });
+      return;
+    }
+    map.fitBounds(bounds, { padding: [48, 48], maxZoom: 17 });
+  } catch (error) {
+    console.warn("Falha ao ajustar zoom dos mapas filtrados:", error);
   }
-  const bounds = L.latLngBounds(coords.map(([lat, lng]) => L.latLng(lat, lng)));
-  map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17, animate: true });
 }
 
 function featureMatchesMapFilter(feature: FeatureRecord, filter: MapSearchFilter): boolean {
@@ -436,6 +466,8 @@ function SearchBar({
   const searchMarkerRef = useRef<Leaflet.Marker | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  /** Evita reabrir sugestões após aplicar filtro enquanto o texto permanece. */
+  const suppressSuggestionsRef = useRef(false);
 
   const activeServiceKeys = useMemo(
     () => orderedServiceKeys.filter((key) => !!overlayToggles[key]),
@@ -459,6 +491,7 @@ function SearchBar({
       setShowSuggestions(false);
       setSelectedIndex(-1);
       setIsSearching(false);
+      suppressSuggestionsRef.current = false;
       if (mode === "map") {
         clearSearchMarker();
         onSelectLocation(null);
@@ -480,6 +513,12 @@ function SearchBar({
       return;
     }
 
+    if (suppressSuggestionsRef.current) {
+      setIsSearching(false);
+      setShowSuggestions(false);
+      return;
+    }
+
     const timeoutId = setTimeout(async () => {
       try {
         setIsSearching(true);
@@ -497,6 +536,7 @@ function SearchBar({
             { signal },
           );
           const json = res.ok ? await res.json() : { results: [] };
+          if (suppressSuggestionsRef.current) return;
           const list: MapSearchSuggestion[] = (json.results || [])
             .filter(
               (r: FeatureRecord) =>
@@ -523,6 +563,7 @@ function SearchBar({
         ]);
         const localJson = localRes.ok ? await localRes.json() : { results: [] };
         const placesJson = placesRes.ok ? await placesRes.json() : { results: [] };
+        if (suppressSuggestionsRef.current) return;
         const localList: SearchSuggestion[] = (localJson.results || []).map(
           (r: {
             logradouro: string;
@@ -615,10 +656,12 @@ function SearchBar({
       clearSearchMarker();
       onSelectLocation(null);
       onMapSearchFilterChange({ services, setors, query });
-      setSearchQuery("");
+      // Mantém o texto digitado para continuar editando a pesquisa
+      suppressSuggestionsRef.current = true;
       setShowSuggestions(false);
       setSelectedIndex(-1);
       setMapSuggestions([]);
+      setSuggestions([]);
     },
     [
       L,
@@ -632,6 +675,7 @@ function SearchBar({
 
   const selectMapSuggestion = useCallback(
     async (suggestion: MapSearchSuggestion) => {
+      setSearchQuery(suggestion.setor);
       await applyMapFilter([suggestion], suggestion.setor);
     },
     [applyMapFilter],
@@ -681,11 +725,17 @@ function SearchBar({
         searchMarkerRef.current = marker;
       }
       onSelectLocation({ coords: [lat, lng], label, subprefeitura: subpref });
-      setSearchQuery("");
+      // Mantém o texto digitado / selecionado na barra
+      if (label && label !== searchQuery) {
+        setSearchQuery(address.logradouro || label);
+      }
+      suppressSuggestionsRef.current = true;
       setShowSuggestions(false);
       setSelectedIndex(-1);
+      setSuggestions([]);
+      setMapSuggestions([]);
     },
-    [mapRef, L, onSelectLocation, onMapSearchFilterChange, searchMarkerIcon],
+    [mapRef, L, onSelectLocation, onMapSearchFilterChange, searchMarkerIcon, searchQuery],
   );
 
   const handleMapSubmit = async (query: string) => {
@@ -797,7 +847,10 @@ function SearchBar({
       e.preventDefault();
       setShowSuggestions(false);
       setSelectedIndex(-1);
+      suppressSuggestionsRef.current = false;
       setSearchQuery("");
+      setSuggestions([]);
+      setMapSuggestions([]);
     }
   };
 
@@ -854,11 +907,16 @@ function SearchBar({
               ref={inputRef}
               type="search"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                suppressSuggestionsRef.current = false;
+                setSearchQuery(e.target.value);
+              }}
               onKeyDown={handleKeyDown}
               onFocus={() => {
                 setHideSearchGlyph(true);
-                if (suggestionCount > 0) setShowSuggestions(true);
+                if (!suppressSuggestionsRef.current && suggestionCount > 0) {
+                  setShowSuggestions(true);
+                }
               }}
               onBlur={() => {
                 window.setTimeout(() => {
@@ -990,7 +1048,10 @@ function SearchBar({
           </span>
           <button
             type="button"
-            onClick={() => onMapSearchFilterChange(null)}
+            onClick={() => {
+              suppressSuggestionsRef.current = false;
+              onMapSearchFilterChange(null);
+            }}
             className="shrink-0 rounded-md bg-sky-600 px-2 py-1 font-semibold text-white hover:bg-sky-500"
           >
             Limpar
