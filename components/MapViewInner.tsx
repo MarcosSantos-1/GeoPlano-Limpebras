@@ -38,7 +38,7 @@ import type {
   FeatureCollection as GeoJsonFeatureCollection,
   GeoJsonObject,
 } from "geojson";
-import type { FeatureCollection, FeatureRecord } from "@/lib/types";
+import type { FeatureCollection, FeatureRecord, MapSearchFilter, SearchMode } from "@/lib/types";
 import { parseFeaturesJson } from "@/lib/parseFeaturesJson";
 import type * as Leaflet from "leaflet";
 
@@ -244,11 +244,64 @@ type SearchSuggestion = {
   source?: "local" | "google" | "google_geocode";
 };
 
+type MapSearchSuggestion = {
+  setor: string;
+  name: string;
+  service: string;
+  serviceDisplay?: string | null;
+  subprefeitura?: string | null;
+  centroid: [number, number];
+};
+
 type SearchLocation = {
   coords: [number, number];
   label: string;
   subprefeitura?: string | null;
 };
+
+function collectFeatureLatLngs(features: FeatureRecord[]): [number, number][] {
+  const points: [number, number][] = [];
+  for (const feature of features) {
+    const geometry = feature.geometry ?? "polygon";
+    if (geometry === "multiline") {
+      for (const ring of feature.coords as [number, number][][]) {
+        for (const point of ring) {
+          if (Array.isArray(point) && point.length >= 2) points.push([point[0], point[1]]);
+        }
+      }
+      continue;
+    }
+    for (const point of feature.coords as [number, number][]) {
+      if (Array.isArray(point) && point.length >= 2 && typeof point[0] === "number") {
+        points.push([point[0], point[1]]);
+      }
+    }
+  }
+  return points;
+}
+
+function fitMapToFeatures(
+  map: Leaflet.Map,
+  L: typeof Leaflet,
+  features: FeatureRecord[],
+  fallbackCentroids: [number, number][] = [],
+) {
+  const points = collectFeatureLatLngs(features);
+  const coords = points.length > 0 ? points : fallbackCentroids;
+  if (coords.length === 0) return;
+  if (coords.length === 1) {
+    map.setView(coords[0], 16, { animate: true });
+    return;
+  }
+  const bounds = L.latLngBounds(coords.map(([lat, lng]) => L.latLng(lat, lng)));
+  map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17, animate: true });
+}
+
+function featureMatchesMapFilter(feature: FeatureRecord, filter: MapSearchFilter): boolean {
+  if (!filter) return true;
+  if (!filter.services.includes(feature.service)) return true;
+  return filter.setors.includes(feature.setor);
+}
 
 function pointInPolygon(point: [number, number], ring: [number, number][]): boolean {
   if (ring.length < 3) return false;
@@ -343,20 +396,26 @@ function SearchBar({
   loadedByService,
   data,
   boundaryData,
+  mapSearchFilter,
+  onMapSearchFilterChange,
 }: {
   mapRef: React.RefObject<Leaflet.Map | null>;
   L: typeof Leaflet | undefined;
   searchMarkerIcon: Leaflet.DivIcon | null;
-  onSelectLocation: (location: SearchLocation) => void;
+  onSelectLocation: (location: SearchLocation | null) => void;
   overlayToggles: Record<string, boolean>;
   handleOverlayToggle: (key: string, checked: boolean) => void;
   orderedServiceKeys: string[];
   loadedByService: Record<string, FeatureRecord[]>;
   data: FeatureCollection | null;
   boundaryData: any;
+  mapSearchFilter: MapSearchFilter;
+  onMapSearchFilterChange: (filter: MapSearchFilter) => void;
 }) {
+  const [searchMode, setSearchMode] = useState<SearchMode>("address");
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+  const [mapSuggestions, setMapSuggestions] = useState<MapSearchSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -378,10 +437,44 @@ function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  const activeServiceKeys = useMemo(
+    () => orderedServiceKeys.filter((key) => !!overlayToggles[key]),
+    [orderedServiceKeys, overlayToggles],
+  );
+
+  const clearSearchMarker = useCallback(() => {
+    if (searchMarkerRef.current && mapRef.current) {
+      mapRef.current.removeLayer(searchMarkerRef.current);
+      searchMarkerRef.current = null;
+    }
+  }, [mapRef]);
+
+  const switchSearchMode = useCallback(
+    (mode: SearchMode) => {
+      if (mode === searchMode) return;
+      setSearchMode(mode);
+      setSearchQuery("");
+      setSuggestions([]);
+      setMapSuggestions([]);
+      setShowSuggestions(false);
+      setSelectedIndex(-1);
+      setIsSearching(false);
+      if (mode === "map") {
+        clearSearchMarker();
+        onSelectLocation(null);
+      } else {
+        onMapSearchFilterChange(null);
+      }
+    },
+    [clearSearchMarker, onMapSearchFilterChange, onSelectLocation, searchMode],
+  );
+
   useEffect(() => {
     const query = searchQuery.trim();
-    if (!query || query.length < 2) {
+    const minLen = searchMode === "map" ? 1 : 2;
+    if (!query || query.length < minLen) {
       setSuggestions([]);
+      setMapSuggestions([]);
       setShowSuggestions(false);
       setIsSearching(false);
       return;
@@ -391,6 +484,39 @@ function SearchBar({
       try {
         setIsSearching(true);
         const signal = AbortSignal.timeout(8000);
+
+        if (searchMode === "map") {
+          if (activeServiceKeys.length === 0) {
+            setMapSuggestions([]);
+            setShowSuggestions(false);
+            return;
+          }
+          const services = activeServiceKeys.join(",");
+          const res = await fetch(
+            `/api/search-maps?q=${encodeURIComponent(query)}&services=${encodeURIComponent(services)}`,
+            { signal },
+          );
+          const json = res.ok ? await res.json() : { results: [] };
+          const list: MapSearchSuggestion[] = (json.results || [])
+            .filter(
+              (r: FeatureRecord) =>
+                r?.setor && Array.isArray(r.centroid) && r.centroid.length >= 2,
+            )
+            .map((r: FeatureRecord) => ({
+              setor: r.setor,
+              name: r.name || r.setor,
+              service: r.service,
+              serviceDisplay: r.serviceDisplay,
+              subprefeitura: r.subprefeitura,
+              centroid: r.centroid,
+            }));
+          setMapSuggestions(list);
+          setSuggestions([]);
+          setShowSuggestions(list.length > 0);
+          setSelectedIndex(-1);
+          return;
+        }
+
         const [localRes, placesRes] = await Promise.all([
           fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal }),
           fetch(`/api/places-autocomplete?q=${encodeURIComponent(query)}`, { signal }),
@@ -421,12 +547,14 @@ function SearchBar({
         );
         const merged = [...localList, ...googleList].slice(0, 14);
         setSuggestions(merged);
+        setMapSuggestions([]);
         setShowSuggestions(merged.length > 0);
         setSelectedIndex(-1);
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") return;
-        console.warn("Erro ao buscar endereços:", error);
+        console.warn("Erro ao buscar:", error);
         setSuggestions([]);
+        setMapSuggestions([]);
         setShowSuggestions(false);
       } finally {
         setIsSearching(false);
@@ -437,7 +565,7 @@ function SearchBar({
       clearTimeout(timeoutId);
       setIsSearching(false);
     };
-  }, [searchQuery]);
+  }, [searchQuery, searchMode, activeServiceKeys]);
 
   const searchNominatim = async (query: string) => {
     try {
@@ -466,6 +594,48 @@ function SearchBar({
       return [];
     }
   };
+
+  const ensureServicesLoaded = useCallback(
+    (services: string[]) => {
+      for (const service of services) {
+        if (!overlayToggles[service]) {
+          handleOverlayToggle(service, true);
+        }
+      }
+    },
+    [handleOverlayToggle, overlayToggles],
+  );
+
+  const applyMapFilter = useCallback(
+    async (matches: MapSearchSuggestion[], query: string) => {
+      if (!mapRef.current || !L || matches.length === 0) return;
+      const services = [...new Set(matches.map((m) => m.service))];
+      const setors = [...new Set(matches.map((m) => m.setor))];
+      ensureServicesLoaded(services);
+      clearSearchMarker();
+      onSelectLocation(null);
+      onMapSearchFilterChange({ services, setors, query });
+      setSearchQuery("");
+      setShowSuggestions(false);
+      setSelectedIndex(-1);
+      setMapSuggestions([]);
+    },
+    [
+      L,
+      clearSearchMarker,
+      ensureServicesLoaded,
+      mapRef,
+      onMapSearchFilterChange,
+      onSelectLocation,
+    ],
+  );
+
+  const selectMapSuggestion = useCallback(
+    async (suggestion: MapSearchSuggestion) => {
+      await applyMapFilter([suggestion], suggestion.setor);
+    },
+    [applyMapFilter],
+  );
 
   const selectAddress = useCallback(
     async (address: SearchSuggestion) => {
@@ -498,6 +668,7 @@ function SearchBar({
         return;
       }
 
+      onMapSearchFilterChange(null);
       const destination = L.latLng(lat, lng);
       const map = mapRef.current;
       map.setView(destination, 18, { animate: true, duration: 0.75 });
@@ -514,13 +685,67 @@ function SearchBar({
       setShowSuggestions(false);
       setSelectedIndex(-1);
     },
-    [mapRef, L, onSelectLocation, searchMarkerIcon],
+    [mapRef, L, onSelectLocation, onMapSearchFilterChange, searchMarkerIcon],
   );
+
+  const handleMapSubmit = async (query: string) => {
+    if (!mapRef.current || !L) return;
+    if (activeServiceKeys.length === 0) {
+      alert("Ative ao menos uma camada de serviço (ex.: Cata-Bagulho / GO) para pesquisar mapas.");
+      return;
+    }
+    if (selectedIndex >= 0 && selectedIndex < mapSuggestions.length) {
+      await selectMapSuggestion(mapSuggestions[selectedIndex]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const services = activeServiceKeys.join(",");
+      const res = await fetch(
+        `/api/search-maps?q=${encodeURIComponent(query)}&services=${encodeURIComponent(services)}`,
+        { signal: AbortSignal.timeout(10000) },
+      );
+      const json = res.ok ? await res.json() : { results: [] };
+      const results: MapSearchSuggestion[] = (json.results || [])
+        .filter(
+          (r: FeatureRecord) => r?.setor && Array.isArray(r.centroid) && r.centroid.length >= 2,
+        )
+        .map((r: FeatureRecord) => ({
+          setor: r.setor,
+          name: r.name || r.setor,
+          service: r.service,
+          serviceDisplay: r.serviceDisplay,
+          subprefeitura: r.subprefeitura,
+          centroid: r.centroid,
+        }));
+
+      if (results.length === 0) {
+        alert("Nenhum mapa encontrado para esta pesquisa nas camadas ativas.");
+        return;
+      }
+
+      const qLower = query.toLowerCase();
+      const endsWithMatches = results.filter((r) => r.setor.toLowerCase().endsWith(qLower));
+      const toShow = endsWithMatches.length > 0 ? endsWithMatches : results;
+      await applyMapFilter(toShow, query);
+    } catch {
+      alert("Não foi possível realizar a busca de mapas agora.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const query = searchQuery.trim();
     if (!query || !mapRef.current || !L) return;
+
+    if (searchMode === "map") {
+      await handleMapSubmit(query);
+      return;
+    }
+
     if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
       await selectAddress(suggestions[selectedIndex]);
       return;
@@ -553,16 +778,18 @@ function SearchBar({
     }
   };
 
+  const suggestionCount = searchMode === "map" ? mapSuggestions.length : suggestions.length;
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       handleSubmit(e);
       return;
     }
-    if (!showSuggestions || suggestions.length === 0) return;
+    if (!showSuggestions || suggestionCount === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
+      setSelectedIndex((prev) => (prev < suggestionCount - 1 ? prev + 1 : prev));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
@@ -574,17 +801,53 @@ function SearchBar({
     }
   };
 
+  const placeholder =
+    searchMode === "map"
+      ? "Pesquisar mapa (ex: 0001 ou CV10500GO0001)..."
+      : "Pesquisar endereço (ex: av ede 156)...";
+
   return (
-    <div className="absolute left-6 top-6 z-[1000] w-[calc(100vw-120px)] sm:w-[500px]" style={{ marginLeft: "60px" }}>
+    <div className="absolute left-6 top-6 z-[1000] w-[calc(100vw-120px)] sm:w-[560px]" style={{ marginLeft: "60px" }}>
       <form ref={formRef} onSubmit={handleSubmit} className="relative">
-        <div className="flex items-center gap-2 rounded-lg border-2 border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-800">
+        <div className="flex items-center gap-1.5 rounded-lg border-2 border-zinc-300 bg-white p-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-800 sm:gap-2 sm:p-0 sm:pr-0">
+          <div
+            className="ml-1 flex shrink-0 rounded-md border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-600 dark:bg-zinc-900/80"
+            role="group"
+            aria-label="Tipo de pesquisa"
+          >
+            <button
+              type="button"
+              onClick={() => switchSearchMode("address")}
+              className={clsx(
+                "rounded px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition sm:px-2.5",
+                searchMode === "address"
+                  ? "bg-white text-primary shadow-sm dark:bg-zinc-700 dark:text-blue-300"
+                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
+              )}
+            >
+              Endereço
+            </button>
+            <button
+              type="button"
+              onClick={() => switchSearchMode("map")}
+              className={clsx(
+                "rounded px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition sm:px-2.5",
+                searchMode === "map"
+                  ? "bg-white text-primary shadow-sm dark:bg-zinc-700 dark:text-blue-300"
+                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
+              )}
+            >
+              Mapa
+            </button>
+          </div>
+
           <div className="relative min-w-0 flex flex-1 items-center">
             {!hideSearchGlyph && (
               <span
-                className="pointer-events-none absolute left-3 z-[1] hidden sm:flex h-9 w-9 items-center justify-center rounded-lg bg-primary/12 text-primary ring-1 ring-primary/25 dark:bg-primary/20 dark:ring-primary/35"
+                className="pointer-events-none absolute left-2 z-[1] hidden sm:flex h-8 w-8 items-center justify-center rounded-lg bg-primary/12 text-primary ring-1 ring-primary/25 dark:bg-primary/20 dark:ring-primary/35"
                 aria-hidden
               >
-                <i className="fa-solid fa-magnifying-glass text-base" />
+                <i className={clsx("text-sm", searchMode === "map" ? "fa-solid fa-map" : "fa-solid fa-magnifying-glass")} />
               </span>
             )}
             <input
@@ -595,7 +858,7 @@ function SearchBar({
               onKeyDown={handleKeyDown}
               onFocus={() => {
                 setHideSearchGlyph(true);
-                if (suggestions.length > 0) setShowSuggestions(true);
+                if (suggestionCount > 0) setShowSuggestions(true);
               }}
               onBlur={() => {
                 window.setTimeout(() => {
@@ -607,10 +870,10 @@ function SearchBar({
                   }
                 }, 200);
               }}
-              placeholder="Pesquisar endereço (ex: av ede 156)..."
+              placeholder={placeholder}
               className={clsx(
-                "min-w-0 flex-1 rounded-md border-none bg-transparent py-3 text-sm text-zinc-700 focus:outline-none focus:ring-0 dark:text-zinc-200 dark:placeholder:text-zinc-400",
-                hideSearchGlyph ? "pl-3 pr-2" : "pl-3 sm:pl-14 pr-2",
+                "min-w-0 flex-1 rounded-md border-none bg-transparent py-2.5 text-sm text-zinc-700 focus:outline-none focus:ring-0 dark:text-zinc-200 dark:placeholder:text-zinc-400 sm:py-3",
+                hideSearchGlyph ? "pl-2 pr-2" : "pl-2 sm:pl-12 pr-2",
               )}
               autoComplete="off"
             />
@@ -618,7 +881,7 @@ function SearchBar({
           <button
             type="submit"
             disabled={isSearching || !searchQuery.trim()}
-            className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary p-0 text-sm font-semibold text-white uppercase tracking-wide shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 sm:h-auto sm:w-auto sm:px-4 sm:py-2"
+            className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary p-0 text-sm font-semibold text-white uppercase tracking-wide shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 sm:mr-2 sm:h-auto sm:w-auto sm:px-4 sm:py-2"
           >
             {isSearching ? (
               "..."
@@ -631,7 +894,7 @@ function SearchBar({
           </button>
         </div>
 
-        {showSuggestions && suggestions.length > 0 && (
+        {showSuggestions && searchMode === "address" && suggestions.length > 0 && (
           <div className="absolute left-0 top-full z-[1001] mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-800">
             <ul className="py-1">
               {suggestions.map((suggestion, index) => (
@@ -666,15 +929,74 @@ function SearchBar({
           </div>
         )}
 
-        {isSearching && searchQuery.trim().length >= 2 && (
+        {showSuggestions && searchMode === "map" && mapSuggestions.length > 0 && (
+          <div className="absolute left-0 top-full z-[1001] mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-800">
+            <ul className="py-1">
+              {mapSuggestions.map((suggestion, index) => (
+                <li key={`${suggestion.service}-${suggestion.setor}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void selectMapSuggestion(suggestion);
+                      inputRef.current?.blur();
+                    }}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    className={clsx(
+                      "w-full px-4 py-3 text-left text-sm transition-colors",
+                      index === selectedIndex
+                        ? "bg-primary/20 text-primary dark:bg-primary/30 dark:text-blue-400"
+                        : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700",
+                    )}
+                  >
+                    <div className="font-medium">{suggestion.setor}</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {[
+                        suggestion.serviceDisplay || suggestion.service,
+                        suggestion.subprefeitura,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {isSearching && searchQuery.trim().length >= (searchMode === "map" ? 1 : 2) && (
           <div className="absolute left-0 top-full z-[1001] mt-1 w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-500 shadow-lg dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
             <div className="flex items-center gap-2">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <span>Buscando endereços...</span>
+              <span>{searchMode === "map" ? "Buscando mapas..." : "Buscando endereços..."}</span>
             </div>
           </div>
         )}
+
+        {searchMode === "map" && activeServiceKeys.length === 0 && searchQuery.trim().length > 0 && (
+          <div className="absolute left-0 top-full z-[1001] mt-1 w-full rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-600 dark:bg-amber-950/80 dark:text-amber-200">
+            Ative uma camada (ex.: Cata-Bagulho / GO) para pesquisar mapas.
+          </div>
+        )}
       </form>
+
+      {mapSearchFilter && (
+        <div className="mt-2 flex items-center gap-2 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-900 shadow dark:border-sky-700 dark:bg-sky-950/70 dark:text-sky-100">
+          <i className="fa-solid fa-filter shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">
+            Exibindo {mapSearchFilter.setors.length} mapa
+            {mapSearchFilter.setors.length === 1 ? "" : "s"}
+            {mapSearchFilter.query ? ` para “${mapSearchFilter.query}”` : ""}
+          </span>
+          <button
+            type="button"
+            onClick={() => onMapSearchFilterChange(null)}
+            className="shrink-0 rounded-md bg-sky-600 px-2 py-1 font-semibold text-white hover:bg-sky-500"
+          >
+            Limpar
+          </button>
+        </div>
+      )}
 
       {/* Mobile Controls Row: hidden sm:flex */}
       <div className="mt-2 flex sm:hidden items-center gap-1.5 flex-wrap pointer-events-auto">
@@ -978,7 +1300,9 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
   const [subprefLoteData, setSubprefLoteData] = useState<GeoJsonFeatureCollection | null>(null);
   const [searchError] = useState<string | null>(null);
   const [selectedSearchLocation, setSelectedSearchLocation] = useState<SearchLocation | null>(null);
+  const [mapSearchFilter, setMapSearchFilter] = useState<MapSearchFilter>(null);
   const searchInfoPopupRef = useRef<Leaflet.Popup | null>(null);
+  const mapFilterFitKeyRef = useRef<string | null>(null);
 
   const [activeBaseId, setActiveBaseId] = useState<string>(BASE_LAYERS[0].id);
   const [layersMenuOpen, setLayersMenuOpen] = useState(false);
@@ -1275,7 +1599,13 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
   }, [data?.services, loadedByService, orderedServiceKeys, overlayToggles, selectedSearchLocation]);
 
   useEffect(() => {
-    if (!selectedSearchLocation || !mapRef.current || !L) return;
+    if (!mapRef.current || !L) return;
+    if (!selectedSearchLocation) {
+      if (searchInfoPopupRef.current) {
+        mapRef.current.closePopup(searchInfoPopupRef.current);
+      }
+      return;
+    }
     const popup =
       searchInfoPopupRef.current ??
       L.popup({
@@ -1296,6 +1626,26 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
       .openOn(mapRef.current);
     searchInfoPopupRef.current = popup;
   }, [L, searchMatches, selectedSearchLocation]);
+
+  // Ajusta o zoom quando o filtro de mapas e as geometrias já estão carregados
+  useEffect(() => {
+    if (!mapSearchFilter || !mapRef.current || !L) {
+      mapFilterFitKeyRef.current = null;
+      return;
+    }
+    const features: FeatureRecord[] = [];
+    for (const service of mapSearchFilter.services) {
+      const layer = loadedByService[service] ?? data?.services[service] ?? [];
+      for (const feature of layer) {
+        if (mapSearchFilter.setors.includes(feature.setor)) features.push(feature);
+      }
+    }
+    if (features.length === 0) return;
+    const fitKey = `${mapSearchFilter.services.join(",")}|${mapSearchFilter.setors.join(",")}|${mapSearchFilter.query}`;
+    if (mapFilterFitKeyRef.current === fitKey) return;
+    mapFilterFitKeyRef.current = fitKey;
+    fitMapToFeatures(mapRef.current, L, features);
+  }, [L, data?.services, loadedByService, mapSearchFilter]);
 
   const mapCenter = useMemo(() => data?.center ?? [-23.491507, -46.610730], [data]);
 
@@ -1414,6 +1764,8 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
           loadedByService={loadedByService}
           data={data}
           boundaryData={boundaryData}
+          mapSearchFilter={mapSearchFilter}
+          onMapSearchFilterChange={setMapSearchFilter}
         />
       )}
 
@@ -1438,11 +1790,14 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
             if (!overlayToggles[serviceKey]) return null;
             const features =
               loadedByService[serviceKey] ?? data?.services[serviceKey] ?? [];
+            const visibleFeatures = mapSearchFilter
+              ? features.filter((feature) => featureMatchesMapFilter(feature, mapSearchFilter))
+              : features;
             return (
               <ServiceLayer
                 key={serviceKey}
                 serviceKey={serviceKey}
-                features={features}
+                features={visibleFeatures}
                 getMarkerIcon={getMarkerIcon}
               />
             );

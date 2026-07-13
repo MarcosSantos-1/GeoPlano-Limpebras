@@ -48,3 +48,12 @@ export type FeatureCollection = {
   } | null;
   addressIndex?: AddressIndexEntry[];
 };
+
+export type SearchMode = "address" | "map";
+
+/** Filtro de contornos após busca por mapa (setor). */
+export type MapSearchFilter = {
+  services: string[];
+  setors: string[];
+  query: string;
+} | null;
