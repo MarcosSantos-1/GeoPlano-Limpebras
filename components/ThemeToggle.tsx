@@ -1,101 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const savedTheme = localStorage.getItem("theme");
-    const isCurrentlyDark = document.documentElement.classList.contains("dark");
-    const shouldBeDark = savedTheme === "dark" || isCurrentlyDark;
-    
-    setIsDark(shouldBeDark);
-    
-    if (shouldBeDark && !isCurrentlyDark) {
-      document.documentElement.classList.add("dark");
-    } else if (!shouldBeDark && isCurrentlyDark) {
-      document.documentElement.classList.remove("dark");
-    }
+    const sync = () => {
+      const isDark = document.documentElement.classList.contains("dark");
+      setTheme(isDark ? "dark" : "light");
+    };
+    sync();
+    window.addEventListener("themechange", sync);
+    return () => window.removeEventListener("themechange", sync);
   }, []);
 
-  const toggleTheme = () => {
-    const newIsDark = !isDark;
-    setIsDark(newIsDark);
-    
-    if (newIsDark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-    
-    // Força re-render
+  const handleThemeChange = (next: "light" | "dark") => {
+    const nextDark = next === "dark";
+    document.documentElement.classList.toggle("dark", nextDark);
+    localStorage.setItem("theme", next);
+    setTheme(next);
     window.dispatchEvent(new Event("themechange"));
   };
 
   if (!mounted) {
-    return (
-      <button
-        type="button"
-        className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-700 transition hover:bg-zinc-50"
-        aria-label="Alternar tema"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-5 w-5"
-        >
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-        </svg>
-      </button>
-    );
+    return <AnimatedThemeToggler />;
   }
 
-  return (
-    <button
-      type="button"
-      onClick={toggleTheme}
-      className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-      aria-label={isDark ? "Alternar para tema claro" : "Alternar para tema escuro"}
-    >
-      {isDark ? (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-5 w-5"
-        >
-          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-        </svg>
-      ) : (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-5 w-5"
-        >
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-        </svg>
-      )}
-    </button>
-  );
+  return <AnimatedThemeToggler theme={theme} onThemeChange={handleThemeChange} />;
 }

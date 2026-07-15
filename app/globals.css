@@ -17,3 +17,37 @@ body {
   font-family: inherit;
 }
 
+/* Magic UI theme toggle view transition */
+html[data-magicui-theme-vt="active"]::view-transition-old(root),
+html[data-magicui-theme-vt="active"]::view-transition-new(root) {
+  animation-duration: var(--magicui-theme-toggle-vt-duration, 400ms);
+  animation-timing-function: ease-in-out;
+}
+
+@supports (view-transition-name: none) {
+  html[data-magicui-theme-vt="active"]::view-transition-old(root) {
+    animation-name: magicui-theme-fade-out;
+  }
+  html[data-magicui-theme-vt="active"]::view-transition-new(root) {
+    animation-name: magicui-theme-fade-in;
+  }
+}
+
+@keyframes magicui-theme-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes magicui-theme-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+

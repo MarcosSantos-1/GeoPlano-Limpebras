@@ -40,6 +40,7 @@ import type {
 } from "geojson";
 import type { FeatureCollection, FeatureRecord, MapSearchFilter, SearchMode } from "@/lib/types";
 import { parseFeaturesJson } from "@/lib/parseFeaturesJson";
+import { findNearestFeatureAtPoint } from "@/lib/serviceSchedule";
 import type * as Leaflet from "leaflet";
 
 let LeafletLib: typeof Leaflet | undefined;
@@ -65,8 +66,6 @@ function getFullscreenElement(): Element | null {
 const MARKER_ON_LINE_SERVICES = new Set(["CA", "CF_VF_LF", "LE"]);
 const DEFAULT_LINE_WEIGHT = 4.15;
 const DEFAULT_POLYGON_LINE_WEIGHT = 2.3;
-const SEARCH_POINT_PICK_METERS = 70;
-
 /** No clique na linha, só VM lista vários setores no mesmo ponto; demais serviços têm um setor/frequência por trecho. */
 const LINE_CLICK_MULTI_SECTOR_POPUP = new Set(["VM"]);
 
@@ -333,41 +332,12 @@ function featureMatchesMapFilter(feature: FeatureRecord, filter: MapSearchFilter
   return filter.setors.includes(feature.setor);
 }
 
-function pointInPolygon(point: [number, number], ring: [number, number][]): boolean {
-  if (ring.length < 3) return false;
-  const [lat, lon] = point;
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [latI, lonI] = ring[i];
-    const [latJ, lonJ] = ring[j];
-    const intersects =
-      latI > lat !== latJ > lat &&
-      lon < ((lonJ - lonI) * (lat - latI)) / (latJ - latI || Number.EPSILON) + lonI;
-    if (intersects) inside = !inside;
-  }
-  return inside;
-}
-
 function escapeSearchHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function isFeatureAtPoint(feature: FeatureRecord, point: [number, number]): boolean {
-  const geometry = feature.geometry ?? "polygon";
-  if (geometry === "line" || geometry === "multiline") {
-    return minDistancePointToPolylineMeters(point, feature.coords) <= OVERLAPPING_LINE_PICK_METERS;
-  }
-  if (geometry === "point") {
-    const coords = feature.coords as [number, number][];
-    const first = coords[0];
-    return !!first && minDistancePointToPolylineMeters(point, [first, first]) <= SEARCH_POINT_PICK_METERS;
-  }
-  const coords = feature.coords as [number, number][];
-  return pointInPolygon(point, coords) || minDistancePointToPolylineMeters(point, coords) <= OVERLAPPING_LINE_PICK_METERS;
 }
 
 function buildSearchMatchesHtml(matches: FeatureRecord[]): string {
@@ -1645,16 +1615,15 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
       return { hasActiveService: activeKeys.length > 0, matches: [] as FeatureRecord[] };
     }
     const matches: FeatureRecord[] = [];
-    const seen = new Set<string>();
     for (const serviceKey of activeKeys) {
       const features = loadedByService[serviceKey] ?? data?.services[serviceKey] ?? [];
-      for (const feature of features) {
-        if (!isFeatureAtPoint(feature, selectedSearchLocation.coords)) continue;
-        const key = feature.id ?? `${feature.service}-${feature.setor}-${feature.name}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        matches.push(feature);
-      }
+      // Um mapa por serviço: o mais próximo do endereço (como clique na linha)
+      const nearest = findNearestFeatureAtPoint(
+        features,
+        selectedSearchLocation.coords,
+        OVERLAPPING_LINE_PICK_METERS,
+      );
+      if (nearest) matches.push(nearest);
     }
     return { hasActiveService: activeKeys.length > 0, matches };
   }, [data?.services, loadedByService, orderedServiceKeys, overlayToggles, selectedSearchLocation]);

@@ -8,18 +8,21 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "upload:firebase": "node scripts/upload-to-firebase.js"
+    "upload:firebase": "node scripts/upload-to-firebase.js",
+    "export:subpref-kml": "node scripts/export-subprefeituras-lote-kml.js"
   },
   "dependencies": {
     "clsx": "^2.0.0",
     "firebase-admin": "^13.8.0",
     "leaflet": "^1.9.4",
     "leaflet-control-geocoder": "^2.4.0",
+    "motion": "^12.42.2",
     "next": "^16.2.4",
     "next-themes": "^0.4.6",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-leaflet": "^4.2.1",
+    "tailwind-merge": "^3.6.0",
     "xlsx": "^0.18.5"
   },
   "overrides": {

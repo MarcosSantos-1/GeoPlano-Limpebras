@@ -138,18 +138,47 @@ function pointInPolygon(point: [number, number], ring: [number, number][]): bool
   return inside;
 }
 
-export function isFeatureAtPoint(feature: FeatureRecord, point: [number, number]): boolean {
+/** Distância do ponto à geometria (0 se dentro do polígono). */
+export function featureDistanceMeters(feature: FeatureRecord, point: [number, number]): number {
   const geometry = feature.geometry ?? "polygon";
   if (geometry === "line" || geometry === "multiline") {
-    return minDistancePointToPolylineMeters(point, feature.coords) <= OVERLAPPING_LINE_PICK_METERS;
+    return minDistancePointToPolylineMeters(point, feature.coords);
   }
   if (geometry === "point") {
     const coords = feature.coords as [number, number][];
     const first = coords[0];
-    return !!first && minDistancePointToPolylineMeters(point, [first, first]) <= POINT_PICK_METERS;
+    if (!first) return Number.POSITIVE_INFINITY;
+    return minDistancePointToPolylineMeters(point, [first, first]);
   }
   const coords = feature.coords as [number, number][];
-  return pointInPolygon(point, coords) || minDistancePointToPolylineMeters(point, coords) <= POINT_PICK_METERS;
+  if (pointInPolygon(point, coords)) return 0;
+  return minDistancePointToPolylineMeters(point, coords);
+}
+
+export function isFeatureAtPoint(feature: FeatureRecord, point: [number, number]): boolean {
+  const geometry = feature.geometry ?? "polygon";
+  const maxMeters =
+    geometry === "line" || geometry === "multiline"
+      ? OVERLAPPING_LINE_PICK_METERS
+      : POINT_PICK_METERS;
+  return featureDistanceMeters(feature, point) <= maxMeters;
+}
+
+/** Retorna só o mapa/setor mais próximo do ponto (como o clique na linha do mapa). */
+export function findNearestFeatureAtPoint(
+  features: FeatureRecord[],
+  point: [number, number],
+  maxMeters: number = OVERLAPPING_LINE_PICK_METERS,
+): FeatureRecord | null {
+  let best: FeatureRecord | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const feature of features) {
+    const distance = featureDistanceMeters(feature, point);
+    if (distance > maxMeters || distance >= bestDist) continue;
+    bestDist = distance;
+    best = feature;
+  }
+  return best;
 }
 
 function weekdaysFromText(value?: string | null): number[] {
@@ -233,6 +262,6 @@ export function nextScheduleDateForFeature(feature: FeatureRecord, service: Esca
 }
 
 export function findScheduleMatch(features: FeatureRecord[], point: [number, number], service: EscalonadoServiceKey): ScheduleMatch | null {
-  const match = features.find((feature) => isFeatureAtPoint(feature, point));
+  const match = findNearestFeatureAtPoint(features, point);
   return match ? nextScheduleDateForFeature(match, service) : null;
 }
