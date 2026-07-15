@@ -72,7 +72,7 @@ export function AnimatedThemeToggler({
       <button
         type="button"
         className={cn(
-          "relative flex h-10 w-10 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-700 shadow-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200",
+          "relative flex h-10 w-10 items-center justify-center rounded-full text-zinc-700 dark:text-zinc-200",
           className,
         )}
         aria-label="Alternar tema"
@@ -85,7 +85,7 @@ export function AnimatedThemeToggler({
       type="button"
       onClick={() => void toggleTheme()}
       className={cn(
-        "relative flex h-10 w-10 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-700 shadow-sm transition hover:scale-105 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700",
+        "relative flex h-10 w-10 items-center justify-center rounded-full text-zinc-700 transition hover:scale-110 hover:text-sky-600 dark:text-zinc-200 dark:hover:text-sky-300",
         className,
       )}
       aria-label={isDark ? "Alternar para tema claro" : "Alternar para tema escuro"}

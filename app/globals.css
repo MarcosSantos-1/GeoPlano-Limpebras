@@ -51,3 +51,51 @@ html[data-magicui-theme-vt="active"]::view-transition-new(root) {
   }
 }
 
+.loading-shimmer-text {
+  background-image: linear-gradient(
+    90deg,
+    rgba(14, 165, 233, 0.35) 0%,
+    rgba(14, 165, 233, 1) 40%,
+    rgba(129, 140, 248, 1) 60%,
+    rgba(14, 165, 233, 0.35) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: loading-shimmer-slide 1.6s ease-in-out infinite;
+}
+
+.dark .loading-shimmer-text {
+  background-image: linear-gradient(
+    90deg,
+    rgba(56, 189, 248, 0.35) 0%,
+    rgba(56, 189, 248, 1) 40%,
+    rgba(167, 139, 250, 1) 60%,
+    rgba(56, 189, 248, 0.35) 100%
+  );
+}
+
+@keyframes loading-shimmer-slide {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes glass-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.glass-skeleton {
+  animation: glass-skeleton-pulse 1.4s ease-in-out infinite;
+}
+

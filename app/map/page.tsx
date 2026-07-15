@@ -11,7 +11,7 @@ export default async function MapPage() {
     <main className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white dark:bg-zinc-900">
       <AppHeader compact />
 
-      <div className="flex flex-1 bg-white dark:bg-slate-900">
+      <div className="relative z-0 flex flex-1 bg-white dark:bg-slate-900">
         <MapView data={initialData} />
       </div>
     </main>
