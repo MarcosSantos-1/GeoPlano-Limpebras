@@ -17,11 +17,12 @@ import {
   Marker,
   Polygon,
   Polyline,
-  Popup,
   TileLayer,
+  useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import clsx from "clsx";
+import { motion } from "motion/react";
 import { renderToString } from "react-dom/server";
 import {
   getServiceFaLayerSpec,
@@ -215,6 +216,64 @@ function OverlayRowLeading({
 
 function getPopupHtml(feature: FeatureRecord): string {
   return buildPopupHtml(feature);
+}
+
+/** Rua + número apenas (sem CEP, bairro ou cidade). */
+function formatStreetAndNumber(parts: {
+  road?: string;
+  pedestrian?: string;
+  residential?: string;
+  footway?: string;
+  path?: string;
+  house_number?: string;
+}): string | null {
+  const street =
+    parts.road || parts.pedestrian || parts.residential || parts.footway || parts.path;
+  if (!street) return null;
+  const number = (parts.house_number || "").trim();
+  return number ? `${street}, ${number}` : street;
+}
+
+async function reverseGeocodeStreetNumber(lat: number, lng: number): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({
+      format: "json",
+      lat: String(lat),
+      lon: String(lng),
+      addressdetails: "1",
+      zoom: "18",
+    });
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?${params.toString()}`,
+      { headers: { "Accept-Language": "pt-BR" }, signal: AbortSignal.timeout(8000) },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as {
+      address?: {
+        road?: string;
+        pedestrian?: string;
+        residential?: string;
+        footway?: string;
+        path?: string;
+        house_number?: string;
+      };
+    };
+    return data.address ? formatStreetAndNumber(data.address) : null;
+  } catch {
+    return null;
+  }
+}
+
+function wrapPopupWithClickAddress(address: string, bodyHtml: string): string {
+  const safe = escapeSearchHtml(address);
+  return (
+    `<div style="max-width:min(420px,92vw);font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">` +
+    `<div style="margin:0 0 8px 0;padding:6px 8px;background:#eff6ff;color:#1e3a8a;font-size:11px;border-radius:6px;border:1px solid #bfdbfe;font-weight:600;">` +
+    `${safe}` +
+    `</div>` +
+    bodyHtml +
+    `</div>`
+  );
 }
 
 /** Texto opcional abaixo do pin (satélite): Ecopontos, NH, monumentos, PV (só ID). */
@@ -829,10 +888,26 @@ function SearchBar({
       ? "Pesquisar mapa (ex: 0001 ou CV10500GO0001)..."
       : "Pesquisar endereço (ex: av ede 156)...";
 
+  const suggestionListClass =
+    "absolute left-0 top-full z-[1001] mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-300 bg-white shadow-lg [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden dark:border-zinc-600 dark:bg-zinc-800";
+
   return (
-    <div className="absolute left-6 top-6 z-[1000] w-[calc(100vw-120px)] sm:w-[560px]" style={{ marginLeft: "60px" }}>
+    <motion.div
+      className="absolute left-6 top-6 z-[1000] w-[calc(100vw-120px)] sm:w-[560px]"
+      style={{ marginLeft: "60px" }}
+      initial={{ opacity: 0, y: -12, filter: "blur(6px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+    >
       <form ref={formRef} onSubmit={handleSubmit} className="relative">
-        <div className="flex items-center gap-1.5 rounded-lg border-2 border-zinc-300 bg-white p-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-800 sm:gap-2 sm:p-0 sm:pr-0">
+        <motion.div
+          className={clsx(
+            "flex items-center gap-2 rounded-lg border-2 border-zinc-300 bg-white p-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-800 sm:gap-3 sm:p-0 sm:pr-0",
+            isSearching && "ring-2 ring-primary/25",
+          )}
+          animate={isSearching ? { scale: [1, 1.008, 1] } : { scale: 1 }}
+          transition={isSearching ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" } : undefined}
+        >
           <div
             className="ml-1 flex shrink-0 rounded-md border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-600 dark:bg-zinc-900/80"
             role="group"
@@ -866,12 +941,14 @@ function SearchBar({
 
           <div className="relative min-w-0 flex flex-1 items-center">
             {!hideSearchGlyph && (
-              <span
-                className="pointer-events-none absolute left-2 z-[1] hidden sm:flex h-8 w-8 items-center justify-center rounded-lg bg-primary/12 text-primary ring-1 ring-primary/25 dark:bg-primary/20 dark:ring-primary/35"
+              <motion.span
+                className="pointer-events-none absolute left-3 z-[1] hidden sm:flex h-8 w-8 items-center justify-center rounded-lg bg-primary/12 text-primary ring-1 ring-primary/25 dark:bg-primary/20 dark:ring-primary/35"
                 aria-hidden
+                animate={isSearching ? { scale: [1, 1.08, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
+                transition={isSearching ? { duration: 1.1, repeat: Infinity, ease: "easeInOut" } : undefined}
               >
                 <i className={clsx("text-sm", searchMode === "map" ? "fa-solid fa-map" : "fa-solid fa-magnifying-glass")} />
-              </span>
+              </motion.span>
             )}
             <input
               ref={inputRef}
@@ -901,7 +978,7 @@ function SearchBar({
               placeholder={placeholder}
               className={clsx(
                 "min-w-0 flex-1 rounded-md border-none bg-transparent py-2.5 text-sm text-zinc-700 focus:outline-none focus:ring-0 dark:text-zinc-200 dark:placeholder:text-zinc-400 sm:py-3",
-                hideSearchGlyph ? "pl-2 pr-2" : "pl-2 sm:pl-12 pr-2",
+                hideSearchGlyph ? "pl-3 pr-2" : "pl-3 sm:pl-16 pr-2",
               )}
               autoComplete="off"
             />
@@ -909,21 +986,21 @@ function SearchBar({
           <button
             type="submit"
             disabled={isSearching || !searchQuery.trim()}
-            className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary p-0 text-sm font-semibold text-white uppercase tracking-wide shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 sm:mr-2 sm:h-auto sm:w-auto sm:px-4 sm:py-2"
+            className="mr-1 ml-1 flex h-9 shrink-0 items-center justify-center gap-2.5 rounded-lg bg-primary px-3 text-sm font-semibold text-white uppercase tracking-wide shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 sm:mr-2 sm:ml-2 sm:h-auto sm:px-4 sm:py-2"
           >
             {isSearching ? (
               "..."
             ) : (
               <>
+                <i className="fa-solid fa-magnifying-glass text-xs" aria-hidden />
                 <span className="hidden sm:inline">Buscar</span>
-                <i className="fa-solid fa-magnifying-glass sm:hidden" aria-hidden />
               </>
             )}
           </button>
-        </div>
+        </motion.div>
 
         {showSuggestions && searchMode === "address" && suggestions.length > 0 && (
-          <div className="absolute left-0 top-full z-[1001] mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-800">
+          <div className={suggestionListClass}>
             <ul className="py-1">
               {suggestions.map((suggestion, index) => (
                 <li key={suggestion.placeId ?? `${suggestion.logradouro}-${index}`}>
@@ -958,7 +1035,7 @@ function SearchBar({
         )}
 
         {showSuggestions && searchMode === "map" && mapSuggestions.length > 0 && (
-          <div className="absolute left-0 top-full z-[1001] mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-800">
+          <div className={suggestionListClass}>
             <ul className="py-1">
               {mapSuggestions.map((suggestion, index) => (
                 <li key={`${suggestion.service}-${suggestion.setor}`}>
@@ -1127,7 +1204,7 @@ function SearchBar({
           );
         })}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -1141,6 +1218,9 @@ function ServiceLayer({
   features: FeatureRecord[];
   getMarkerIcon: (f: FeatureRecord) => Leaflet.DivIcon | null;
 }) {
+  const map = useMap();
+  const L = LeafletLib;
+
   const lineFeatures = useMemo(
     () => features.filter((f) => ["line", "multiline"].includes(f.geometry ?? "polygon")),
     [features],
@@ -1155,6 +1235,33 @@ function ServiceLayer({
   );
 
   const showLineCentroidMarkers = MARKER_ON_LINE_SERVICES.has(serviceKey);
+
+  const openManualPopup = useCallback(
+    (latlng: Leaflet.LatLng, bodyHtml: string) => {
+      if (!L) return;
+      // Clique manual: popup no ponto clicado, sem autoPan/zoom
+      const clickKey = `${latlng.lat.toFixed(6)},${latlng.lng.toFixed(6)}`;
+      const popup = L.popup({
+        autoPan: false,
+        closeButton: true,
+        maxWidth: 460,
+        className: "manual-click-popup",
+      })
+        .setLatLng(latlng)
+        .setContent(bodyHtml)
+        .openOn(map);
+
+      void reverseGeocodeStreetNumber(latlng.lat, latlng.lng).then((label) => {
+        if (!label || !popup.isOpen()) return;
+        const current = popup.getLatLng();
+        if (!current) return;
+        const openKey = `${current.lat.toFixed(6)},${current.lng.toFixed(6)}`;
+        if (openKey !== clickKey) return;
+        popup.setContent(wrapPopupWithClickAddress(label, bodyHtml));
+      });
+    },
+    [L, map],
+  );
 
   return (
     <FeatureGroup>
@@ -1192,7 +1299,7 @@ function ServiceLayer({
                         !LINE_CLICK_MULTI_SECTOR_POPUP.has(serviceKey)
                       ? getPopupHtml(uniq[0])
                       : buildVmOverlapPopupHtml(uniq);
-                e.target.bindPopup(html).openPopup();
+                openManualPopup(ll, html);
               },
             }}
           />
@@ -1205,11 +1312,12 @@ function ServiceLayer({
             key={`${feature.id ?? feature.setor}-lc`}
             position={feature.centroid}
             icon={getMarkerIcon(feature) ?? undefined}
-          >
-            <Popup>
-              <div dangerouslySetInnerHTML={{ __html: getPopupHtml(feature) }} />
-            </Popup>
-          </Marker>
+            eventHandlers={{
+              click: (e) => {
+                openManualPopup(e.latlng, getPopupHtml(feature));
+              },
+            }}
+          />
         ))}
 
       {polygonFeatures.map((feature) => (
@@ -1221,11 +1329,12 @@ function ServiceLayer({
             weight: feature.lineWidth || DEFAULT_POLYGON_LINE_WEIGHT,
             fillOpacity: 0.35,
           }}
-        >
-          <Popup>
-            <div dangerouslySetInnerHTML={{ __html: getPopupHtml(feature) }} />
-          </Popup>
-        </Polygon>
+          eventHandlers={{
+            click: (e) => {
+              openManualPopup(e.latlng, getPopupHtml(feature));
+            },
+          }}
+        />
       ))}
 
       {polygonFeatures.map((feature) => (
@@ -1233,11 +1342,12 @@ function ServiceLayer({
           key={`${feature.id ?? feature.setor}-pm`}
           position={feature.centroid}
           icon={getMarkerIcon(feature) ?? undefined}
-        >
-          <Popup>
-            <div dangerouslySetInnerHTML={{ __html: getPopupHtml(feature) }} />
-          </Popup>
-        </Marker>
+          eventHandlers={{
+            click: (e) => {
+              openManualPopup(e.latlng, getPopupHtml(feature));
+            },
+          }}
+        />
       ))}
 
       {pointFeatures.map((feature) => {
@@ -1249,11 +1359,12 @@ function ServiceLayer({
             key={`${feature.id ?? feature.setor}-pt`}
             position={[lat, lon]}
             icon={getMarkerIcon(feature) ?? undefined}
-          >
-            <Popup>
-              <div dangerouslySetInnerHTML={{ __html: getPopupHtml(feature) }} />
-            </Popup>
-          </Marker>
+            eventHandlers={{
+              click: (e) => {
+                openManualPopup(e.latlng, getPopupHtml(feature));
+              },
+            }}
+          />
         );
       })}
     </FeatureGroup>
@@ -1857,6 +1968,7 @@ export default function MapView({ data: initialData }: MapViewProps = {}) {
                     const title = p.nm_subprefeitura ?? def.label;
                     layer.bindPopup(
                       `<strong>${def.sg}</strong><br/><span style="font-size:12px">${title}</span>`,
+                      { autoPan: false },
                     );
                   }}
                 />

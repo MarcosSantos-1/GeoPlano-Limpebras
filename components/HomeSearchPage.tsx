@@ -13,7 +13,6 @@ import { parseFeaturesJson } from "@/lib/parseFeaturesJson";
 import {
   findNearestFeatureAtPoint,
   formatDateShort,
-  isFeatureAtPoint,
   nextScheduleDateForFeature,
   parseScheduleDates,
   pickDatesAroundToday,
@@ -474,10 +473,7 @@ export function HomeSearchPage() {
     if (!selectedAddress) return result;
     for (const service of TARGET_SERVICES) {
       const features = serviceData[service] ?? [];
-      if (service === "VJ_VL") {
-        result[service] = features.filter((feature) => isFeatureAtPoint(feature, selectedAddress.coords));
-        continue;
-      }
+      // Um mapa por serviço: o mais próximo do endereço (inclui Varrição)
       const nearest = findNearestFeatureAtPoint(
         features,
         selectedAddress.coords,
@@ -559,14 +555,28 @@ export function HomeSearchPage() {
             >
               Consulte um endereço
             </motion.h1>
-            <form ref={formRef} onSubmit={handleSubmit} className="relative mt-8">
+            <motion.form
+              ref={formRef}
+              onSubmit={handleSubmit}
+              className="relative mt-8"
+              initial={{ opacity: 0, y: 16, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              transition={{ delay: 0.12, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            >
               <motion.div
                 animate={searchShellControls}
-                className="flex items-center gap-3 rounded-full border border-zinc-200/80 bg-white/80 p-2 shadow-lg shadow-sky-100/50 backdrop-blur-md transition focus-within:border-sky-300 focus-within:shadow-sky-200/60 dark:border-zinc-700/80 dark:bg-zinc-900/80 dark:shadow-black/20 dark:focus-within:border-sky-500"
+                className={clsx(
+                  "flex items-center gap-2 rounded-full border border-zinc-200/80 bg-white/80 p-2 shadow-lg shadow-sky-100/50 backdrop-blur-md transition focus-within:border-sky-300 focus-within:shadow-sky-200/60 dark:border-zinc-700/80 dark:bg-zinc-900/80 dark:shadow-black/20 dark:focus-within:border-sky-500",
+                  isSearching && "ring-2 ring-sky-300/50 dark:ring-sky-500/30",
+                )}
               >
-                <span className="ml-3 hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                <motion.span
+                  className="ml-3 hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300"
+                  animate={isSearching ? { scale: [1, 1.08, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
+                  transition={isSearching ? { duration: 1.1, repeat: Infinity, ease: "easeInOut" } : undefined}
+                >
                   <i className="fa-solid fa-magnifying-glass" aria-hidden />
-                </span>
+                </motion.span>
                 <input
                   ref={inputRef}
                   value={query}
@@ -583,20 +593,20 @@ export function HomeSearchPage() {
                     }, 160);
                   }}
                   placeholder="Pesquise uma rua, avenida ou praça"
-                  className="min-w-0 flex-1 bg-transparent py-3 pl-3 sm:pl-0 text-base text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  className="min-w-0 flex-1 bg-transparent py-3 pl-2 pr-3 text-base text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500 sm:pl-3"
                   autoComplete="off"
                 />
                 <button
                   type="submit"
                   disabled={isSearching || !query.trim()}
-                  className="mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-600 p-0 text-sm font-semibold text-white transition hover:scale-105 hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50 sm:h-auto sm:w-auto sm:px-5 sm:py-3"
+                  className="mr-1 ml-1 flex h-10 shrink-0 items-center justify-center gap-2.5 rounded-full bg-sky-600 px-4 text-sm font-semibold text-white transition hover:scale-105 hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-2 sm:px-5 sm:py-3"
                 >
                   {isSearching ? (
                     "..."
                   ) : (
                     <>
+                      <i className="fa-solid fa-magnifying-glass text-xs" aria-hidden />
                       <span className="hidden sm:inline">Buscar</span>
-                      <i className="fa-solid fa-magnifying-glass sm:hidden" aria-hidden />
                     </>
                   )}
                 </button>
@@ -609,7 +619,7 @@ export function HomeSearchPage() {
                     animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                     exit={{ opacity: 0, y: -6, filter: "blur(3px)" }}
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    className="absolute left-0 top-full z-30 mt-2 max-h-80 w-full overflow-auto rounded-xl border border-zinc-200/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-md dark:border-zinc-700 dark:bg-zinc-900/95"
+                    className="absolute left-0 top-full z-30 mt-2 max-h-80 w-full overflow-auto rounded-xl border border-zinc-200/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-md [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden dark:border-zinc-700 dark:bg-zinc-900/95"
                   >
                     {suggestions.map((suggestion, index) => (
                       <motion.button
@@ -644,7 +654,7 @@ export function HomeSearchPage() {
                   </motion.div>
                 ) : null}
               </AnimatePresence>
-            </form>
+            </motion.form>
           </div>
 
           {!hasQuery && !selectedAddress ? (
