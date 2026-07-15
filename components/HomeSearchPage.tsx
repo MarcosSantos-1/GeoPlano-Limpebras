@@ -5,9 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { AnimatePresence, motion, useAnimationControls } from "motion/react";
 import { AppHeader } from "@/components/AppHeader";
-import { BorderBeam } from "@/components/ui/border-beam";
-import { LiquidGlassCard } from "@/components/ui/liquid-glass-card";
 import { LoadingShimmerText } from "@/components/ui/loading-shimmer-text";
+import { MagicCard } from "@/components/ui/magic-card";
 import { Particles } from "@/components/ui/particles";
 import { OVERLAPPING_LINE_PICK_METERS } from "@/lib/polylineDistance";
 import { parseFeaturesJson } from "@/lib/parseFeaturesJson";
@@ -48,10 +47,10 @@ const SERVICE_TITLES: Record<ServiceKey, string> = {
   VJ_VL: "Varrição Manual",
 };
 const SERVICE_ICON_ACCENTS: Record<ServiceKey, string> = {
-  GO: "text-emerald-700 bg-emerald-50/70 dark:text-emerald-300 dark:bg-emerald-500/10",
-  MT: "text-sky-700 bg-sky-50/70 dark:text-sky-300 dark:bg-sky-500/10",
-  BL: "text-amber-700 bg-amber-50/70 dark:text-amber-300 dark:bg-amber-500/10",
-  VJ_VL: "text-violet-700 bg-violet-50/70 dark:text-violet-300 dark:bg-violet-500/10",
+  GO: "text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/10",
+  MT: "text-sky-700 bg-sky-50 dark:text-sky-300 dark:bg-sky-500/10",
+  BL: "text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-500/10",
+  VJ_VL: "text-violet-700 bg-violet-50 dark:text-violet-300 dark:bg-violet-500/10",
 };
 const SERVICE_ICONS: Record<ServiceKey, string> = {
   GO: "fa-solid fa-couch",
@@ -59,11 +58,11 @@ const SERVICE_ICONS: Record<ServiceKey, string> = {
   BL: "fa-solid fa-water",
   VJ_VL: "fa-solid fa-broom",
 };
-const SERVICE_GLASS: Record<ServiceKey, { from: string; to: string }> = {
-  GO: { from: "rgba(52,211,153,0.28)", to: "rgba(5,150,105,0.12)" },
-  MT: { from: "rgba(56,189,248,0.28)", to: "rgba(37,99,235,0.12)" },
-  BL: { from: "rgba(251,191,36,0.28)", to: "rgba(217,119,6,0.12)" },
-  VJ_VL: { from: "rgba(167,139,250,0.28)", to: "rgba(124,58,237,0.12)" },
+const SERVICE_GRADIENTS: Record<ServiceKey, { from: string; to: string; glow: string }> = {
+  GO: { from: "#34d399", to: "#059669", glow: "#064e3b33" },
+  MT: { from: "#38bdf8", to: "#2563eb", glow: "#0c4a6e33" },
+  BL: { from: "#fbbf24", to: "#d97706", glow: "#78350f33" },
+  VJ_VL: { from: "#a78bfa", to: "#7c3aed", glow: "#4c1d9533" },
 };
 
 function expandFrequency(value: string): string {
@@ -132,28 +131,40 @@ function PageCard({
   delay?: number;
 }) {
   const content = (
-    <LiquidGlassCard
-      delay={delay}
-      accentFrom="rgba(56,189,248,0.3)"
-      accentTo="rgba(129,140,248,0.16)"
-      contentClassName="p-5"
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className={cn("flex min-h-[150px] flex-col justify-between text-left", disabled && "opacity-70")}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{description}</p>
+      <MagicCard
+        className="rounded-xl"
+        gradientFrom="#38bdf8"
+        gradientTo="#818cf8"
+        gradientColor="#0ea5e933"
+        gradientOpacity={0.55}
+      >
+        <div
+          className={cn(
+            "flex min-h-[150px] flex-col justify-between p-5 text-left",
+            disabled && "opacity-70",
+          )}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{description}</p>
+            </div>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200/80 bg-sky-50 text-sky-600 transition group-hover:scale-110 dark:border-zinc-700 dark:bg-sky-500/10 dark:text-sky-300">
+              <i className={icon} aria-hidden />
+            </span>
           </div>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/50 bg-white/40 text-sky-600 backdrop-blur transition group-hover:scale-110 dark:border-white/10 dark:bg-white/5 dark:text-sky-300">
-            <i className={icon} aria-hidden />
-          </span>
+          <div className="mt-5 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-zinc-500 transition group-hover:text-sky-600 dark:text-zinc-400 dark:group-hover:text-sky-300">
+            <span>{disabled ? "Em breve" : "Abrir"}</span>
+            <i className="fa-solid fa-arrow-right text-[11px] transition group-hover:translate-x-0.5" aria-hidden />
+          </div>
         </div>
-        <div className="mt-5 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-zinc-500 transition group-hover:text-sky-600 dark:text-zinc-400 dark:group-hover:text-sky-300">
-          <span>{disabled ? "Em breve" : "Abrir"}</span>
-          <i className="fa-solid fa-arrow-right text-[11px] transition group-hover:translate-x-0.5" aria-hidden />
-        </div>
-      </div>
-    </LiquidGlassCard>
+      </MagicCard>
+    </motion.div>
   );
   if (href && !disabled) return <Link href={href}>{content}</Link>;
   return content;
@@ -181,105 +192,122 @@ function ScheduleCard({
   ).map(expandFrequency);
   const uniqueSectors = Array.from(new Set(features.map((feature) => feature.setor).filter(Boolean)));
   const uniqueDays = Array.from(new Set(features.map((feature) => feature.cronograma).filter(Boolean) as string[]));
-  const glass = SERVICE_GLASS[service];
+  const gradient = SERVICE_GRADIENTS[service];
 
   return (
-    <LiquidGlassCard delay={delay} accentFrom={glass.from} accentTo={glass.to} contentClassName="p-4">
-      <section className="text-zinc-900 dark:text-zinc-100">
-        {uniqueSectors.length > 0 ? (
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {uniqueSectors.slice(0, 3).map((setor) => (
-              <span
-                key={setor}
-                className="rounded-md border border-white/40 bg-white/50 px-2 py-1 text-xs font-bold text-sky-700 backdrop-blur dark:border-white/10 dark:bg-sky-500/10 dark:text-sky-300"
-              >
-                {setor}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide opacity-70">{service.replace("_", "/")}</p>
-            <h3 className="mt-1 text-base font-semibold">{SERVICE_TITLES[service]}</h3>
-          </div>
-          <span
-            className={clsx(
-              "flex h-9 w-9 items-center justify-center rounded-xl text-lg shadow-sm backdrop-blur transition group-hover:scale-110",
-              SERVICE_ICON_ACCENTS[service],
-            )}
-          >
-            <i className={SERVICE_ICONS[service]} aria-hidden />
-          </span>
-        </div>
-
-        {features.length === 0 ? (
-          <div className="mt-5 rounded-xl border border-white/30 bg-white/40 px-3 py-3 text-sm text-zinc-600 backdrop-blur dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
-            Sem rota encontrada neste ponto.
-          </div>
-        ) : isVarricao ? (
-          <div className="mt-5 space-y-3">
-            {scheduleDates.map((date, index) => (
-              <div
-                key={`${service}-${date}-${index}`}
-                className="flex items-center justify-between rounded-xl border border-sky-400/70 bg-white/45 px-3 py-2 ring-2 ring-sky-200/50 backdrop-blur dark:bg-white/5 dark:ring-sky-500/20"
-              >
-                <span className="text-xs font-semibold uppercase tracking-wide opacity-60">
-                  {index === 0 ? "Próxima" : "Depois"}
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <MagicCard
+        className="rounded-xl"
+        gradientFrom={gradient.from}
+        gradientTo={gradient.to}
+        gradientColor={gradient.glow}
+        gradientOpacity={0.5}
+      >
+        <section className="p-4 text-zinc-900 dark:text-zinc-100">
+          {uniqueSectors.length > 0 ? (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {uniqueSectors.slice(0, 3).map((setor) => (
+                <span
+                  key={setor}
+                  className="rounded-md bg-sky-50 px-2 py-1 text-xs font-bold text-sky-700 ring-1 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/30"
+                >
+                  {setor}
                 </span>
-                <span className="text-sm font-semibold">{date}</span>
-              </div>
-            ))}
-            <div className="rounded-xl border border-white/30 bg-white/40 px-3 py-3 backdrop-blur dark:border-white/10 dark:bg-white/5">
-              <p className="text-xs font-semibold uppercase tracking-wide opacity-60">Frequência</p>
-              <p className="mt-1 text-sm font-semibold">{uniqueFrequencies.join(" | ") || "Não informada"}</p>
+              ))}
             </div>
-            <div className="rounded-xl border border-white/30 bg-white/40 px-3 py-3 backdrop-blur dark:border-white/10 dark:bg-white/5">
-              <p className="text-xs font-semibold uppercase tracking-wide opacity-60">Dias</p>
-              <p className="mt-1 text-sm font-semibold">{uniqueDays.join(" | ") || "Não informado"}</p>
+          ) : null}
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide opacity-70">{service.replace("_", "/")}</p>
+              <h3 className="mt-1 text-base font-semibold">{SERVICE_TITLES[service]}</h3>
             </div>
-          </div>
-        ) : (
-          <div className="mt-5 space-y-3">
-            <div className="grid grid-cols-1 gap-2">
-              {dateSlots.length > 0 ? (
-                dateSlots.map((slot, index) => (
-                  <div
-                    key={`${service}-${slot.label}-${slot.value.getTime()}-${index}`}
-                    className={clsx(
-                      "flex items-center justify-between rounded-xl border border-white/30 bg-white/40 px-3 py-2 backdrop-blur dark:border-white/10 dark:bg-white/5",
-                      slot.label === "Próxima" &&
-                        "border-sky-400/70 ring-2 ring-sky-200/50 dark:border-sky-400 dark:ring-sky-500/20",
-                    )}
-                  >
-                    <span className="text-xs font-semibold uppercase tracking-wide opacity-60">{slot.label}</span>
-                    <span className="text-sm font-semibold">{formatDateShort(slot.value)}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-xl border border-white/30 bg-white/40 px-3 py-3 text-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
-                  Cronograma não informado.
-                </div>
+            <span
+              className={clsx(
+                "flex h-9 w-9 items-center justify-center rounded-xl text-lg shadow-sm transition group-hover:scale-110",
+                SERVICE_ICON_ACCENTS[service],
               )}
-            </div>
+            >
+              <i className={SERVICE_ICONS[service]} aria-hidden />
+            </span>
           </div>
-        )}
-      </section>
-    </LiquidGlassCard>
+
+          {features.length === 0 ? (
+            <div className="mt-5 rounded-xl bg-zinc-50 px-3 py-3 text-sm text-zinc-600 dark:bg-zinc-800/70 dark:text-zinc-300">
+              Sem rota encontrada neste ponto.
+            </div>
+          ) : isVarricao ? (
+            <div className="mt-5 space-y-3">
+              {scheduleDates.map((date, index) => (
+                <div
+                  key={`${service}-${date}-${index}`}
+                  className="flex items-center justify-between rounded-xl border border-sky-400 bg-zinc-50 px-3 py-2 ring-2 ring-sky-200/70 dark:bg-zinc-800/70 dark:ring-sky-500/20"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wide opacity-60">
+                    {index === 0 ? "Próxima" : "Depois"}
+                  </span>
+                  <span className="text-sm font-semibold">{date}</span>
+                </div>
+              ))}
+              <div className="rounded-xl bg-zinc-50 px-3 py-3 dark:bg-zinc-800/70">
+                <p className="text-xs font-semibold uppercase tracking-wide opacity-60">Frequência</p>
+                <p className="mt-1 text-sm font-semibold">{uniqueFrequencies.join(" | ") || "Não informada"}</p>
+              </div>
+              <div className="rounded-xl bg-zinc-50 px-3 py-3 dark:bg-zinc-800/70">
+                <p className="text-xs font-semibold uppercase tracking-wide opacity-60">Dias</p>
+                <p className="mt-1 text-sm font-semibold">{uniqueDays.join(" | ") || "Não informado"}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-5 space-y-3">
+              <div className="grid grid-cols-1 gap-2">
+                {dateSlots.length > 0 ? (
+                  dateSlots.map((slot, index) => (
+                    <div
+                      key={`${service}-${slot.label}-${slot.value.getTime()}-${index}`}
+                      className={clsx(
+                        "flex items-center justify-between rounded-xl bg-zinc-50 px-3 py-2 dark:bg-zinc-800/70",
+                        slot.label === "Próxima" &&
+                          "border border-sky-400 ring-2 ring-sky-200/70 dark:border-sky-400 dark:ring-sky-500/20",
+                      )}
+                    >
+                      <span className="text-xs font-semibold uppercase tracking-wide opacity-60">{slot.label}</span>
+                      <span className="text-sm font-semibold">{formatDateShort(slot.value)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl bg-zinc-50 px-3 py-3 text-sm dark:bg-zinc-800/70">
+                    Cronograma não informado.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      </MagicCard>
+    </motion.div>
   );
 }
 
 function ScheduleCardSkeleton({ delay = 0 }: { delay?: number }) {
   return (
-    <LiquidGlassCard delay={delay} contentClassName="p-4" accentFrom="rgba(148,163,184,0.2)" accentTo="rgba(148,163,184,0.08)">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay }}
+      className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+    >
       <div className="space-y-3">
-        <div className="glass-skeleton h-3 w-16 rounded-full bg-zinc-300/70 dark:bg-zinc-600/70" />
-        <div className="glass-skeleton h-5 w-32 rounded-full bg-zinc-300/70 dark:bg-zinc-600/70" />
-        <div className="glass-skeleton mt-4 h-10 w-full rounded-xl bg-zinc-300/60 dark:bg-zinc-600/50" />
-        <div className="glass-skeleton h-10 w-full rounded-xl bg-zinc-300/50 dark:bg-zinc-600/40" />
-        <div className="glass-skeleton h-10 w-4/5 rounded-xl bg-zinc-300/40 dark:bg-zinc-600/30" />
+        <div className="glass-skeleton h-3 w-16 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+        <div className="glass-skeleton h-5 w-32 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+        <div className="glass-skeleton mt-4 h-10 w-full rounded-xl bg-zinc-100 dark:bg-zinc-800" />
+        <div className="glass-skeleton h-10 w-full rounded-xl bg-zinc-100 dark:bg-zinc-800" />
+        <div className="glass-skeleton h-10 w-4/5 rounded-xl bg-zinc-100 dark:bg-zinc-800" />
       </div>
-    </LiquidGlassCard>
+    </motion.div>
   );
 }
 
@@ -492,8 +520,6 @@ export function HomeSearchPage() {
     }
   };
 
-  const beamDuration = Math.max(3.2, 7 - Math.min(query.length, 12) * 0.22);
-
   return (
     <main className="relative min-h-screen overflow-hidden bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-100 flex flex-col">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100/80 via-zinc-50 to-zinc-50 dark:from-sky-950/40 dark:via-zinc-950 dark:to-zinc-950" />
@@ -536,62 +562,44 @@ export function HomeSearchPage() {
             <form ref={formRef} onSubmit={handleSubmit} className="relative mt-8">
               <motion.div
                 animate={searchShellControls}
-                className="relative overflow-hidden rounded-full border border-white/50 bg-white/55 p-2 shadow-lg shadow-sky-100/40 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/55 dark:shadow-black/20"
+                className="flex items-center gap-3 rounded-full border border-zinc-200/80 bg-white/80 p-2 shadow-lg shadow-sky-100/50 backdrop-blur-md transition focus-within:border-sky-300 focus-within:shadow-sky-200/60 dark:border-zinc-700/80 dark:bg-zinc-900/80 dark:shadow-black/20 dark:focus-within:border-sky-500"
               >
-                <BorderBeam
-                  size={90}
-                  duration={beamDuration}
-                  borderWidth={2}
-                  colorFrom="#38bdf8"
-                  colorTo="#818cf8"
+                <span className="ml-3 hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                  <i className="fa-solid fa-magnifying-glass" aria-hidden />
+                </span>
+                <input
+                  ref={inputRef}
+                  value={query}
+                  type="search"
+                  onChange={(event) => handleInputChange(event.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => {
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => {
+                      const active = document.activeElement;
+                      if (!formRef.current?.contains(active)) setShowSuggestions(false);
+                    }, 160);
+                  }}
+                  placeholder="Pesquise uma rua, avenida ou praça"
+                  className="min-w-0 flex-1 bg-transparent py-3 pl-3 sm:pl-0 text-base text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  autoComplete="off"
                 />
-                <BorderBeam
-                  size={70}
-                  duration={beamDuration + 1.4}
-                  delay={1.2}
-                  borderWidth={1.5}
-                  colorFrom="#a78bfa"
-                  colorTo="#22d3ee"
-                  reverse
-                />
-                <div className="relative z-10 flex items-center gap-3">
-                  <span className="ml-3 hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-sky-50/80 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
-                    <i className="fa-solid fa-magnifying-glass" aria-hidden />
-                  </span>
-                  <input
-                    ref={inputRef}
-                    value={query}
-                    type="search"
-                    onChange={(event) => handleInputChange(event.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onFocus={() => {
-                      if (suggestions.length > 0) setShowSuggestions(true);
-                    }}
-                    onBlur={() => {
-                      window.setTimeout(() => {
-                        const active = document.activeElement;
-                        if (!formRef.current?.contains(active)) setShowSuggestions(false);
-                      }, 160);
-                    }}
-                    placeholder="Pesquise uma rua, avenida ou praça"
-                    className="min-w-0 flex-1 bg-transparent py-3 pl-3 sm:pl-0 text-base text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-                    autoComplete="off"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSearching || !query.trim()}
-                    className="mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-600 p-0 text-sm font-semibold text-white transition hover:scale-105 hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50 sm:h-auto sm:w-auto sm:px-5 sm:py-3"
-                  >
-                    {isSearching ? (
-                      "..."
-                    ) : (
-                      <>
-                        <span className="hidden sm:inline">Buscar</span>
-                        <i className="fa-solid fa-magnifying-glass sm:hidden" aria-hidden />
-                      </>
-                    )}
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={isSearching || !query.trim()}
+                  className="mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-600 p-0 text-sm font-semibold text-white transition hover:scale-105 hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50 sm:h-auto sm:w-auto sm:px-5 sm:py-3"
+                >
+                  {isSearching ? (
+                    "..."
+                  ) : (
+                    <>
+                      <span className="hidden sm:inline">Buscar</span>
+                      <i className="fa-solid fa-magnifying-glass sm:hidden" aria-hidden />
+                    </>
+                  )}
+                </button>
               </motion.div>
 
               <AnimatePresence>
@@ -601,7 +609,7 @@ export function HomeSearchPage() {
                     animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                     exit={{ opacity: 0, y: -6, filter: "blur(3px)" }}
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    className="absolute left-0 top-full z-30 mt-2 max-h-80 w-full overflow-auto rounded-2xl border border-white/50 bg-white/70 p-2 text-left shadow-xl backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-900/75"
+                    className="absolute left-0 top-full z-30 mt-2 max-h-80 w-full overflow-auto rounded-xl border border-zinc-200/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-md dark:border-zinc-700 dark:bg-zinc-900/95"
                   >
                     {suggestions.map((suggestion, index) => (
                       <motion.button
@@ -723,7 +731,7 @@ export function HomeSearchPage() {
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mx-auto mt-10 max-w-2xl rounded-2xl border border-dashed border-white/50 bg-white/45 p-6 text-center text-sm text-zinc-500 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/50 dark:text-zinc-400"
+              className="mx-auto mt-10 max-w-2xl rounded-xl border border-dashed border-zinc-300 bg-white/70 p-6 text-center text-sm text-zinc-500 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-400"
             >
               Escolha uma sugestão para ver os cronogramas.
             </motion.div>
